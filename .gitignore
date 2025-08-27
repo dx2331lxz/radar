@@ -1,0 +1,10 @@
+# Build outputs
+/build/
+/build-*/
+CMakeCache.txt
+CMakeFiles/
+*.user
+*.pro.user
+
+# macOS
+.DS_Store
