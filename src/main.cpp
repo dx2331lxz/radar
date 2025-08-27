@@ -3,6 +3,7 @@
 #include <QVBoxLayout>
 #include <QScrollArea>
 #include "RadarConfigWidget.h"
+#include "RadarStatusWidget.h"
 #include <QDebug>
 #include "NetworkManager.h"
 
@@ -14,8 +15,10 @@ int main(int argc, char *argv[])
     window.setWindowTitle("雷达任务配置");
 
     auto *layout = new QVBoxLayout(&window);
-    auto *cfg = new RadarConfigWidget();
+    auto *status = new RadarStatusWidget();
+    layout->addWidget(status);
 
+    auto *cfg = new RadarConfigWidget();
     // Put the config widget into a scroll area so the whole page can scroll
     auto *scroll = new QScrollArea();
     scroll->setWidgetResizable(true);
@@ -53,6 +56,7 @@ int main(int argc, char *argv[])
 
     // forward radar UDP payloads into UI preview/log
     QObject::connect(&net, &NetworkManager::radarDatagramReceived, cfg, &RadarConfigWidget::onRadarDatagramReceived);
+    QObject::connect(&net, &NetworkManager::radarDatagramReceived, status, &RadarStatusWidget::onRadarDatagram);
 
     return app.exec();
 }
