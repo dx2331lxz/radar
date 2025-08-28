@@ -61,6 +61,18 @@ cmake --build build -j
     └── launch.json
 ```
 
+## 新增功能
+- 航迹报文解析（6.1 雷达航迹报文），小端字节序。
+- 圆形雷达显示器（`RadarScopeWidget`）：实时显示目标位置与最近30秒航迹折线，方位以正北为0°顺时针。
+
+## 运行
+使用 VS Code 任务：
+1. 运行 `CMake: configure`
+2. 运行 `CMake: build`
+3. 运行 `Run app`
+
+应用在本机 UDP 6553 端口接收，默认向 127.0.0.1:6280 发送。将航迹报文通过 UDP 发至 6553 即可在界面中看到航迹绘制。
+
 ## 常见问题
 
 - 找不到 Qt6（find_package 失败）

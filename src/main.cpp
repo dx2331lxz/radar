@@ -6,6 +6,8 @@
 #include "RadarStatusWidget.h"
 #include <QDebug>
 #include "NetworkManager.h"
+#include "RadarScopeWidget.h"
+#include "RadarStatus.h"
 
 int main(int argc, char *argv[])
 {
@@ -17,6 +19,11 @@ int main(int argc, char *argv[])
     auto *layout = new QVBoxLayout(&window);
     auto *status = new RadarStatusWidget();
     layout->addWidget(status);
+
+    // 圆形雷达显示器
+    auto *scope = new RadarScopeWidget();
+    scope->setMinimumHeight(420);
+    layout->addWidget(scope);
 
     auto *cfg = new RadarConfigWidget();
     // Put the config widget into a scroll area so the whole page can scroll
@@ -57,6 +64,13 @@ int main(int argc, char *argv[])
     // forward radar UDP payloads into UI preview/log
     QObject::connect(&net, &NetworkManager::radarDatagramReceived, cfg, &RadarConfigWidget::onRadarDatagramReceived);
     QObject::connect(&net, &NetworkManager::radarDatagramReceived, status, &RadarStatusWidget::onRadarDatagram);
+    QObject::connect(&net, &NetworkManager::radarDatagramReceived, scope, &RadarScopeWidget::onTrackDatagram);
+    // 用状态报文动态更新量程
+    QObject::connect(&net, &NetworkManager::radarDatagramReceived, &window, [scope](const QByteArray &data){
+        RadarStatus s; if (RadarStatusParser::parseLittleEndian(data, s)) {
+            if (s.detectRange > 0) scope->setMaxRangeMeters(float(s.detectRange));
+        }
+    });
 
     return app.exec();
 }

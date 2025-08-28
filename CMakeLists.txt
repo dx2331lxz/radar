@@ -19,6 +19,8 @@ add_executable(radar
     src/NetworkManager.cpp
     src/RadarStatus.cpp
     src/RadarStatusWidget.cpp
+    src/TrackMessage.cpp
+    src/RadarScopeWidget.cpp
 )
 
 target_link_libraries(radar PRIVATE Qt6::Widgets Qt6::Network)

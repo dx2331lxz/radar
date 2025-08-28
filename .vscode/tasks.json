@@ -1,46 +1,52 @@
 {
-    "version": "2.0.0",
-    "tasks": [
-        {
-            "label": "CMake: configure",
-            "type": "shell",
-            "command": "rm -rf build && QT_PREFIX=\"\"; if [ -d /opt/homebrew/opt/qt ]; then QT_PREFIX=/opt/homebrew/opt/qt; elif [ -d /usr/local/opt/qt ]; then QT_PREFIX=/usr/local/opt/qt; fi; SDK=$(xcrun --show-sdk-path 2>/dev/null || true); STDINC=\"$SDK/usr/include/c++/v1\"; EXTRA_CXX=\"-stdlib=libc++\"; if [ -d \"$STDINC\" ]; then EXTRA_CXX=\"$EXTRA_CXX -isystem $STDINC\"; fi; CC=/usr/bin/clang CXX=/usr/bin/clang++ cmake -S . -B build -G Ninja ${QT_PREFIX:+-DCMAKE_PREFIX_PATH=$QT_PREFIX} ${SDK:+-DCMAKE_OSX_SYSROOT=$SDK} -DCMAKE_CXX_FLAGS=\"$EXTRA_CXX\" -DCMAKE_EXE_LINKER_FLAGS=\"-stdlib=libc++\"",
-            "problemMatcher": [
-                "$gcc"
-            ],
-            "group": "build"
-        },
-        {
-            "label": "CMake: build",
-            "type": "shell",
-            "command": "cmake --build build -j",
-            "problemMatcher": [
-                "$gcc"
-            ],
-            "group": "build",
-            "dependsOn": [
-                "CMake: configure"
-            ]
-        },
-        {
-            "label": "Run app",
-            "type": "shell",
-            "command": "${workspaceFolder}/build/radar",
-            "options": {
-                "cwd": "${workspaceFolder}"
-            },
-            "dependsOn": [
-                "CMake: build"
-            ]
-        },
-        {
-            "label": "CMake: configure",
-            "type": "shell",
-            "command": "rm -rf build && QT_PREFIX=\"\"; if [ -d /opt/homebrew/opt/qt ]; then QT_PREFIX=/opt/homebrew/opt/qt; elif [ -d /usr/local/opt/qt ]; then QT_PREFIX=/usr/local/opt/qt; fi; cmake -S . -B build -G Ninja ${QT_PREFIX:+-DCMAKE_PREFIX_PATH=$QT_PREFIX}",
-            "problemMatcher": [
-                "$gcc"
-            ],
-            "group": "build"
-        }
-    ]
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "CMake: configure",
+			"type": "shell",
+			"command": "rm -rf build && QT_PREFIX=\"\"; if [ -d /opt/homebrew/opt/qt ]; then QT_PREFIX=/opt/homebrew/opt/qt; elif [ -d /usr/local/opt/qt ]; then QT_PREFIX=/usr/local/opt/qt; fi; SDK=$(xcrun --show-sdk-path 2>/dev/null || true); STDINC=\"$SDK/usr/include/c++/v1\"; EXTRA_CXX=\"-stdlib=libc++\"; if [ -d \"$STDINC\" ]; then EXTRA_CXX=\"$EXTRA_CXX -isystem $STDINC\"; fi; CC=/usr/bin/clang CXX=/usr/bin/clang++ cmake -S . -B build -G Ninja ${QT_PREFIX:+-DCMAKE_PREFIX_PATH=$QT_PREFIX} ${SDK:+-DCMAKE_OSX_SYSROOT=$SDK} -DCMAKE_CXX_FLAGS=\"$EXTRA_CXX\" -DCMAKE_EXE_LINKER_FLAGS=\"-stdlib=libc++\"",
+			"problemMatcher": [
+				"$gcc"
+			],
+			"group": "build"
+		},
+		{
+			"label": "CMake: build",
+			"type": "shell",
+			"command": "cmake --build build -j",
+			"problemMatcher": [
+				"$gcc"
+			],
+			"group": "build",
+			"dependsOn": [
+				"CMake: configure"
+			]
+		},
+		{
+			"label": "Run app",
+			"type": "shell",
+			"command": "${workspaceFolder}/build/radar",
+			"options": {
+				"cwd": "${workspaceFolder}"
+			},
+			"dependsOn": [
+				"CMake: build"
+			]
+		},
+		{
+			"label": "CMake: configure",
+			"type": "shell",
+			"command": "rm -rf build && QT_PREFIX=\"\"; if [ -d /opt/homebrew/opt/qt ]; then QT_PREFIX=/opt/homebrew/opt/qt; elif [ -d /usr/local/opt/qt ]; then QT_PREFIX=/usr/local/opt/qt; fi; cmake -S . -B build -G Ninja ${QT_PREFIX:+-DCMAKE_PREFIX_PATH=$QT_PREFIX}",
+			"problemMatcher": [
+				"$gcc"
+			],
+			"group": "build"
+		},
+		{
+			"label": "Run app (inline)",
+			"type": "shell",
+			"command": "/Users/luxiuzhe/Desktop/radar/build/radar",
+			"group": "build"
+		}
+	]
 }
