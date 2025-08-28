@@ -13,6 +13,7 @@ public:
     void start();
     bool isRadarConnected() const;
     void sendToRadar(const QByteArray &data);
+    void setTarget(const QHostAddress &addr, quint16 port);
 
 signals:
     void radarConnected(bool connected);
@@ -25,4 +26,6 @@ private slots:
 private:
     QUdpSocket *m_udpSocket{nullptr};
     QTimer m_reconnectTimer; // kept for potential periodic tasks
+    QHostAddress m_targetAddr{QHostAddress::LocalHost};
+    quint16 m_targetPort{6280};
 };

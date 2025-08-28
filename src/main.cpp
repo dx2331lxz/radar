@@ -60,6 +60,7 @@ int main(int argc, char *argv[])
     // Network manager: listen for local clients (6553) and connect to radar (6280)
     NetworkManager net;
     net.start();
+    net.setTarget(QHostAddress(QHostAddress::LocalHost), 6280);
 
     auto sendToRadar = [&net](const QJsonObject &obj)
     {
@@ -71,6 +72,13 @@ int main(int argc, char *argv[])
     QObject::connect(cfg, &RadarConfigWidget::sendCalibrationRequested, cfg, sendToRadar);
     QObject::connect(cfg, &RadarConfigWidget::sendStandbyRequested, cfg, sendToRadar);
     QObject::connect(cfg, &RadarConfigWidget::sendSearchRequested, cfg, sendToRadar);
+    QObject::connect(cfg, &RadarConfigWidget::sendSearchPacketRequested, &net, &NetworkManager::sendToRadar);
+    QObject::connect(cfg, &RadarConfigWidget::targetAddressChanged, &window, [&net](const QString &ip, int port)
+                     {
+        Q_UNUSED(ip);
+        Q_UNUSED(port);
+    net.setTarget(QHostAddress(QHostAddress::LocalHost), 6280);
+    qDebug() << "Target locked to" << QHostAddress(QHostAddress::LocalHost).toString() << 6280; });
     QObject::connect(cfg, &RadarConfigWidget::sendTrackRequested, cfg, sendToRadar);
     QObject::connect(cfg, &RadarConfigWidget::sendSimulationRequested, cfg, sendToRadar);
     QObject::connect(cfg, &RadarConfigWidget::sendPowerRequested, cfg, sendToRadar);

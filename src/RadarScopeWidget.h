@@ -5,6 +5,7 @@
 #include <QVector>
 #include <QTimer>
 #include "TrackMessage.h"
+#include <QString>
 
 // 简单的圆形雷达显示器：
 // - 以正北向上，顺时针为正角；
@@ -26,6 +27,12 @@ public:
     void setMaxTrailPoints(int n) { m_maxTrailPoints = qMax(10, n); }
     int maxTrailPoints() const { return m_maxTrailPoints; }
 
+    // 事件提示（仅显示关键信息，如“发现新目标”）
+    void setShowNotices(bool on) { m_showNotices = on; }
+    bool showNotices() const { return m_showNotices; }
+    void setNoticeKeepMs(qint64 ms) { m_noticeKeepMs = qMax<qint64>(500, ms); }
+    qint64 noticeKeepMs() const { return m_noticeKeepMs; }
+
 public slots:
     void onTrackDatagram(const QByteArray &data);
 
@@ -44,6 +51,11 @@ private:
         quint16 id;
         QVector<TrailPoint> points;
     };
+    struct Notice
+    {
+        QString text;
+        qint64 ms;
+    };
 
     QPointF polarToPoint(float distance_m, float azimuth_deg, const QRectF &circle) const;
 
@@ -53,4 +65,7 @@ private:
 
     qint64 m_trailKeepMs = 5ll * 60ll * 1000ll; // 保留5分钟
     int m_maxTrailPoints = 2000;                // 每条轨迹最大采样点
+    bool m_showNotices = true;
+    qint64 m_noticeKeepMs = 3000; // 提示保留3s
+    QVector<Notice> m_notices;    // 左上角提示
 };

@@ -1,5 +1,6 @@
 // RadarConfigWidget.cpp
 #include "RadarConfigWidget.h"
+#include "Protocol.h"
 
 #include <QVBoxLayout>
 #include <QHBoxLayout>
@@ -23,7 +24,8 @@ RadarConfigWidget::RadarConfigWidget(QWidget *parent)
     auto *root = new QVBoxLayout(this);
 
     // Build sections in user flow order:
-    // Power -> Init -> Calibration -> Deploy -> Standby -> Search -> Track -> Simulation -> Servo
+    // Header -> Power -> Init -> Calibration -> Deploy -> Standby -> Search -> Track -> Simulation -> Servo
+    root->addWidget(buildHeaderSection());
     root->addWidget(buildPowerSection());
     root->addWidget(buildInitSection());
     root->addWidget(buildCalibSection());
@@ -56,6 +58,52 @@ RadarConfigWidget::RadarConfigWidget(QWidget *parent)
     connect(resetBtn, &QPushButton::clicked, this, &RadarConfigWidget::onReset);
 
     setDefaults();
+}
+QGroupBox *RadarConfigWidget::buildHeaderSection()
+{
+    auto *w = new QWidget();
+    auto *form = new QFormLayout(w);
+    hdrDeviceModel = new QSpinBox();
+    hdrDeviceModel->setRange(0, 65535);
+    hdrDeviceModel->setValue(6000);
+    hdrDevIdRadar = new QSpinBox();
+    hdrDevIdRadar->setRange(0, 65535);
+    hdrDevIdRadar->setValue(0);
+    hdrDevIdExternal = new QSpinBox();
+    hdrDevIdExternal->setRange(0, 65535);
+    hdrDevIdExternal->setValue(0);
+    hdrCheckMethod = new QComboBox();
+    hdrCheckMethod->addItem(tr("不校验 (0)"), 0);
+    hdrCheckMethod->addItem(tr("和校验 (1)"), 1);
+    hdrCheckMethod->addItem(tr("CRC-16 (2)"), 2);
+    hdrCheckMethod->setCurrentIndex(1);
+
+    // 目标IP与端口
+    targetIpEdit = new QLineEdit();
+    targetIpEdit->setPlaceholderText("127.0.0.1");
+    targetIpEdit->setText("127.0.0.1");
+    targetIpEdit->setReadOnly(true);
+    targetPortSpin = new QSpinBox();
+    targetPortSpin->setRange(1, 65535);
+    targetPortSpin->setValue(6280);
+
+    hdrMsgIdRadar = new QSpinBox();
+    hdrMsgIdRadar->setRange(0, 65535);
+    hdrMsgIdRadar->setValue(0x0101); // 假定：搜索任务报文ID
+    hdrMsgIdExternal = new QSpinBox();
+    hdrMsgIdExternal->setRange(0, 65535);
+    hdrMsgIdExternal->setValue(0);
+
+    form->addRow(tr("设备型号"), hdrDeviceModel);
+    form->addRow(tr("报文ID(雷达)"), hdrMsgIdRadar);
+    form->addRow(tr("报文ID(外部)"), hdrMsgIdExternal);
+    form->addRow(tr("设备ID(雷达)"), hdrDevIdRadar);
+    form->addRow(tr("设备ID(外部)"), hdrDevIdExternal);
+    form->addRow(tr("校验方式"), hdrCheckMethod);
+    form->addRow(tr("目标IP"), targetIpEdit);
+    form->addRow(tr("目标端口"), targetPortSpin);
+
+    return wrapWithTitle(tr("协议帧头配置"), w);
 }
 
 QGroupBox *RadarConfigWidget::buildInitSection()
@@ -244,6 +292,24 @@ void RadarConfigWidget::setDefaults()
 
     servoActionCombo->setCurrentIndex(0);
     servoSpeedSpin->setValue(10.0);
+
+    // header defaults
+    if (hdrDeviceModel)
+        hdrDeviceModel->setValue(6000);
+    if (hdrMsgIdRadar)
+        hdrMsgIdRadar->setValue(0x0101);
+    if (hdrMsgIdExternal)
+        hdrMsgIdExternal->setValue(0);
+    if (hdrDevIdRadar)
+        hdrDevIdRadar->setValue(0);
+    if (hdrDevIdExternal)
+        hdrDevIdExternal->setValue(0);
+    if (hdrCheckMethod)
+        hdrCheckMethod->setCurrentIndex(1); // 和校验
+    if (targetIpEdit)
+        targetIpEdit->setText("127.0.0.1");
+    if (targetPortSpin)
+        targetPortSpin->setValue(6280);
 }
 
 QJsonObject RadarConfigWidget::gatherConfigJson() const
@@ -308,9 +374,11 @@ void RadarConfigWidget::onPreview()
 
 void RadarConfigWidget::onRadarDatagramReceived(const QByteArray &data)
 {
+    if (!m_logIncoming)
+        return; // 默认不显示接收到的报文
     // Append received UDP payload to the preview/log area with a small header
     QString prev = previewEdit->toPlainText();
-    QString msg = QString("[RADAR->APP] %1\n%2\n").arg(QDateTime::currentDateTime().toString(Qt::ISODate), QString::fromUtf8(data));
+    QString msg = QString("[RADAR->APP] %1\n(len=%2 bytes)\n").arg(QDateTime::currentDateTime().toString(Qt::ISODate)).arg(data.size());
     if (!prev.isEmpty())
         prev += "\n" + msg;
     else
@@ -345,9 +413,24 @@ void RadarConfigWidget::onSendStandby()
 
 void RadarConfigWidget::onSendSearch()
 {
-    QJsonObject j{{"enabled", searchEnable->isChecked()}, {"beam_width_deg", searchBeamWidthSpin->value()}, {"range_km", searchRangeKmSpin->value()}, {"waveform", searchWaveformCombo->currentText()}};
-    emit sendSearchRequested(j);
+    // 1) 仍保留JSON预览，方便查看UI参数
+    QJsonObject j{{"enabled", searchEnable->isChecked()}, {"beam_width_deg", searchBeamWidthSpin->value()}, {"range_km", searchRangeKmSpin->value()}, {"waveform", searchWaveformCombo->currentText()}, {"header", QJsonObject{{"device_model", hdrDeviceModel ? hdrDeviceModel->value() : 6000}, {"msg_id_radar", hdrMsgIdRadar ? hdrMsgIdRadar->value() : 0x0101}, {"msg_id_external", hdrMsgIdExternal ? hdrMsgIdExternal->value() : 0}, {"dev_id_radar", hdrDevIdRadar ? hdrDevIdRadar->value() : 0}, {"dev_id_external", hdrDevIdExternal ? hdrDevIdExternal->value() : 0}, {"check_method", hdrCheckMethod ? hdrCheckMethod->currentData().toInt() : 1}}}};
     previewEdit->setPlainText(QString::fromUtf8(QJsonDocument(j).toJson(QJsonDocument::Indented)));
+
+    // 2) 构造并发送二进制“搜索任务”数据包（任务类型固定0x01）
+    Protocol::HeaderConfig hc;
+    hc.deviceModel = quint16(hdrDeviceModel ? hdrDeviceModel->value() : 6000);
+    hc.msgIdRadar = quint16(hdrMsgIdRadar ? hdrMsgIdRadar->value() : 0x0101);
+    hc.msgIdExternal = quint16(hdrMsgIdExternal ? hdrMsgIdExternal->value() : 0);
+    hc.deviceIdRadar = quint16(hdrDevIdRadar ? hdrDevIdRadar->value() : 0);
+    hc.deviceIdExternal = quint16(hdrDevIdExternal ? hdrDevIdExternal->value() : 0);
+    hc.checkMethod = quint8(hdrCheckMethod ? hdrCheckMethod->currentData().toInt() : 1);
+
+    // 先更新目标地址
+    if (targetIpEdit && targetPortSpin)
+        emit targetAddressChanged(targetIpEdit->text(), targetPortSpin->value());
+    QByteArray packet = Protocol::buildSearchTaskPacket(hc, 0x01);
+    emit sendSearchPacketRequested(packet);
 }
 
 void RadarConfigWidget::onSendTrack()

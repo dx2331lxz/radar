@@ -2,9 +2,40 @@
 #include <QHostAddress>
 #include <QDebug>
 
-static constexpr quint16 LOCAL_UDP_PORT = 6553;                 // bind here for recv/send
-static constexpr quint16 RADAR_PORT = 6280;                     // send to radar at this port
-static const QHostAddress RADAR_ADDR = QHostAddress::Broadcast; // default send to broadcast, can be changed later
+namespace
+{
+    QString hexDump(const QByteArray &data, int bytesPerLine = 16)
+    {
+        QString out;
+        const int n = data.size();
+        for (int i = 0; i < n; i += bytesPerLine)
+        {
+            // 偏移
+            out += QString("%1: ").arg(i, 6, 16, QLatin1Char('0')).toUpper();
+            // HEX
+            for (int j = 0; j < bytesPerLine; ++j)
+            {
+                if (i + j < n)
+                    out += QString("%1 ").arg(quint8(data[i + j]), 2, 16, QLatin1Char('0')).toUpper();
+                else
+                    out += "   ";
+                if (j == bytesPerLine / 2 - 1)
+                    out += " "; // 中间再加一个空格
+            }
+            // ASCII
+            out += " |";
+            for (int j = 0; j < bytesPerLine && i + j < n; ++j)
+            {
+                uchar c = uchar(data[i + j]);
+                out += (c >= 32 && c <= 126) ? QChar(c) : QChar('.');
+            }
+            out += "|\n";
+        }
+        return out;
+    }
+} // namespace
+
+static constexpr quint16 LOCAL_UDP_PORT = 6553; // bind here for recv/send
 
 NetworkManager::NetworkManager(QObject *parent)
     : QObject(parent)
@@ -32,9 +63,14 @@ void NetworkManager::sendToRadar(const QByteArray &data)
 {
     if (!m_udpSocket)
         return;
-    qint64 written = m_udpSocket->writeDatagram(data, RADAR_ADDR, RADAR_PORT);
+    qint64 written = m_udpSocket->writeDatagram(data, m_targetAddr, m_targetPort);
     if (written <= 0)
-        qWarning() << "Failed to send UDP to radar";
+        qWarning() << "Failed to send UDP to radar" << m_targetAddr.toString() << m_targetPort << "err=" << m_udpSocket->errorString();
+    else
+    {
+        qDebug() << "UDP sent to" << m_targetAddr << m_targetPort << "len=" << written;
+        qDebug().noquote() << hexDump(data);
+    }
 }
 
 void NetworkManager::onRadarDatagram()
@@ -49,5 +85,12 @@ void NetworkManager::onRadarDatagram()
         // For binary frames, avoid printing raw payload fully
         qDebug() << "UDP recv from" << sender << senderPort << "len=" << buf.size();
         emit radarDatagramReceived(buf);
+        emit clientMessageReceived(buf);
     }
+}
+
+void NetworkManager::setTarget(const QHostAddress &addr, quint16 port)
+{
+    m_targetAddr = addr;
+    m_targetPort = port;
 }

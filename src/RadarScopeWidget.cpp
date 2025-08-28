@@ -59,6 +59,10 @@ void RadarScopeWidget::onTrackDatagram(const QByteArray &data)
         t.id = msg.info.trackId;
         m_trails.push_back(t);
         it = m_trails.end() - 1;
+        if (m_showNotices)
+        {
+            m_notices.push_back({tr("发现新目标 #%1").arg(t.id), QDateTime::currentMSecsSinceEpoch()});
+        }
     }
     it->points.push_back({p, QDateTime::currentMSecsSinceEpoch()});
     if (it->points.size() > m_maxTrailPoints)
@@ -146,7 +150,39 @@ void RadarScopeWidget::paintEvent(QPaintEvent *)
         p.setPen(Qt::NoPen);
         p.setBrush(QColor(80, 180, 255));
         p.drawEllipse(last.pos, 3, 3);
-        p.setPen(QPen(QColor(160, 230, 255), 1));
-        p.drawText(QRectF(last.pos.x() + 4, last.pos.y() - 8, 48, 16), QString::number(t.id));
+    }
+
+    // 左上角提示（只显示关键信息）
+    if (m_showNotices && !m_notices.isEmpty())
+    {
+        const qint64 now = QDateTime::currentMSecsSinceEpoch();
+        // 清理过期
+        m_notices.erase(std::remove_if(m_notices.begin(), m_notices.end(), [&](const Notice &n)
+                                       { return now - n.ms > m_noticeKeepMs; }),
+                        m_notices.end());
+        // 绘制剩余
+        int y = 8;
+        for (const auto &n : m_notices)
+        {
+            const qint64 age = now - n.ms;
+            float a = 1.0f - float(age) / float(m_noticeKeepMs);
+            a = qBound(0.0f, a, 1.0f);
+            QColor fg(230, 250, 230, int(255 * a));
+            QColor bg(0, 0, 0, int(120 * a));
+            p.setPen(Qt::NoPen);
+            p.setBrush(bg);
+            QFont f = p.font();
+            f.setBold(true);
+            p.setFont(f);
+            const QString text = n.text;
+            const QFontMetrics fm(p.font());
+            const int w = fm.horizontalAdvance(text) + 12;
+            const int h = fm.height() + 8;
+            QRect r(8, y, w, h);
+            p.drawRoundedRect(r, 6, 6);
+            p.setPen(fg);
+            p.drawText(r.adjusted(6, 4, -6, -4), Qt::AlignVCenter | Qt::AlignLeft, text);
+            y += h + 6;
+        }
     }
 }

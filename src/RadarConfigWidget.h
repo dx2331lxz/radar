@@ -11,12 +11,17 @@
 #include <QPushButton>
 #include <QTextEdit>
 #include <QJsonObject>
+#include <QGroupBox>
 
 class RadarConfigWidget : public QWidget
 {
     Q_OBJECT
 public:
     explicit RadarConfigWidget(QWidget *parent = nullptr);
+
+    // 是否在右侧面板显示接收到的雷达报文（默认：不显示）
+    void setLogIncoming(bool on) { m_logIncoming = on; }
+    bool logIncoming() const { return m_logIncoming; }
 
 public slots:
     void onRadarDatagramReceived(const QByteArray &data);
@@ -41,6 +46,7 @@ private:
     QGroupBox *buildCalibSection();
     QGroupBox *buildStandbySection();
     QGroupBox *buildSearchSection();
+    QGroupBox *buildHeaderSection();
     QGroupBox *buildTrackSection();
     QGroupBox *buildSimSection();
     QGroupBox *buildPowerSection();
@@ -69,6 +75,15 @@ private:
     QDoubleSpinBox *searchBeamWidthSpin{};
     QSpinBox *searchRangeKmSpin{};
     QComboBox *searchWaveformCombo{};
+    // 帧头参数
+    QSpinBox *hdrDeviceModel{};
+    QSpinBox *hdrDevIdRadar{};
+    QSpinBox *hdrDevIdExternal{};
+    QComboBox *hdrCheckMethod{};
+    QSpinBox *hdrMsgIdRadar{};
+    QSpinBox *hdrMsgIdExternal{};
+    QLineEdit *targetIpEdit{};
+    QSpinBox *targetPortSpin{};
 
     // 跟踪任务
     QCheckBox *trackEnable{};
@@ -111,9 +126,16 @@ signals:
     void sendCalibrationRequested(const QJsonObject &cfg);
     void sendStandbyRequested(const QJsonObject &cfg);
     void sendSearchRequested(const QJsonObject &cfg);
+    // 发送二进制搜索任务包
+    void sendSearchPacketRequested(const QByteArray &packet);
+    // 通知更新目标地址
+    void targetAddressChanged(const QString &ip, int port);
     void sendTrackRequested(const QJsonObject &cfg);
     void sendSimulationRequested(const QJsonObject &cfg);
     void sendPowerRequested(const QJsonObject &cfg);
     void sendDeployRequested(const QJsonObject &cfg);
     void sendServoRequested(const QJsonObject &cfg);
+
+private:
+    bool m_logIncoming = false; // 默认关闭接收报文日志
 };
