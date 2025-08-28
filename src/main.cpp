@@ -1,7 +1,9 @@
 #include <QApplication>
 #include <QWidget>
 #include <QVBoxLayout>
+#include <QHBoxLayout>
 #include <QScrollArea>
+#include <QSplitter>
 #include "RadarConfigWidget.h"
 #include "RadarStatusWidget.h"
 #include <QDebug>
@@ -14,25 +16,45 @@ int main(int argc, char *argv[])
     QApplication app(argc, argv);
 
     QWidget window;
-    window.setWindowTitle("雷达任务配置");
+    window.setWindowTitle("雷达状态与任务配置");
 
-    auto *layout = new QVBoxLayout(&window);
+    // 左：状态 + 圆盘；右：任务配置（滚动）
+    auto *split = new QSplitter(Qt::Horizontal, &window);
+
+    // 左侧：使用垂直分割器，上：状态(可滚动)，下：圆盘
+    auto *leftSplit = new QSplitter(Qt::Vertical);
+    // 状态区+滚动
     auto *status = new RadarStatusWidget();
-    layout->addWidget(status);
-
+    auto *statusScroll = new QScrollArea();
+    statusScroll->setWidgetResizable(true);
+    statusScroll->setWidget(status);
+    statusScroll->setFrameShape(QFrame::NoFrame);
+    leftSplit->addWidget(statusScroll);
     // 圆形雷达显示器
     auto *scope = new RadarScopeWidget();
     scope->setMinimumHeight(420);
-    layout->addWidget(scope);
+    scope->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+    leftSplit->addWidget(scope);
+    leftSplit->setStretchFactor(0, 1); // 状态区
+    leftSplit->setStretchFactor(1, 2); // 雷达盘更大
 
+    // 右侧：配置 + 滚动条
     auto *cfg = new RadarConfigWidget();
-    // Put the config widget into a scroll area so the whole page can scroll
     auto *scroll = new QScrollArea();
     scroll->setWidgetResizable(true);
     scroll->setWidget(cfg);
-    layout->addWidget(scroll);
+    scroll->setMinimumWidth(360);
 
-    window.resize(640, 800);
+    split->addWidget(leftSplit);
+    split->addWidget(scroll);
+    split->setStretchFactor(0, 2); // 左侧更宽
+    split->setStretchFactor(1, 1);
+
+    auto *root = new QHBoxLayout(&window);
+    root->setContentsMargins(0, 0, 0, 0);
+    root->addWidget(split);
+
+    window.resize(1200, 800);
     window.show();
 
     // Network manager: listen for local clients (6553) and connect to radar (6280)
@@ -66,11 +88,11 @@ int main(int argc, char *argv[])
     QObject::connect(&net, &NetworkManager::radarDatagramReceived, status, &RadarStatusWidget::onRadarDatagram);
     QObject::connect(&net, &NetworkManager::radarDatagramReceived, scope, &RadarScopeWidget::onTrackDatagram);
     // 用状态报文动态更新量程
-    QObject::connect(&net, &NetworkManager::radarDatagramReceived, &window, [scope](const QByteArray &data){
+    QObject::connect(&net, &NetworkManager::radarDatagramReceived, &window, [scope](const QByteArray &data)
+                     {
         RadarStatus s; if (RadarStatusParser::parseLittleEndian(data, s)) {
             if (s.detectRange > 0) scope->setMaxRangeMeters(float(s.detectRange));
-        }
-    });
+        } });
 
     return app.exec();
 }

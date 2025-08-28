@@ -41,7 +41,7 @@ struct TrackMessage
     double radarLat{};    // 雷达纬度
     float radarAlt{};     // 雷达海拔
 
-    TrackInfo info;       // 1个航迹
+    TrackInfo info; // 1个航迹
 
     quint8 reserved16[16]{}; // 预留
     quint16 checksum{};      // 校验（未验）
@@ -51,4 +51,6 @@ namespace TrackParser
 {
     // 成功返回 true；否则 false。不会越界访问。
     bool parseLittleEndian(const QByteArray &payload, TrackMessage &out);
+    // 仅做一个轻量的魔数检测（若帧头前4字节可见ASCII，如“HRGK”等）。未知协议时返回false不代表非航迹，仅用于快速过滤。
+    bool hasReadableMagic(const QByteArray &payload);
 }

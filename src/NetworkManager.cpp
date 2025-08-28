@@ -2,9 +2,9 @@
 #include <QHostAddress>
 #include <QDebug>
 
-static constexpr quint16 LOCAL_UDP_PORT = 6553; // bind here for recv/send
-static constexpr quint16 RADAR_PORT = 6280;     // send to radar at this port
-static const QHostAddress RADAR_ADDR = QHostAddress::LocalHost;
+static constexpr quint16 LOCAL_UDP_PORT = 6553;                 // bind here for recv/send
+static constexpr quint16 RADAR_PORT = 6280;                     // send to radar at this port
+static const QHostAddress RADAR_ADDR = QHostAddress::Broadcast; // default send to broadcast, can be changed later
 
 NetworkManager::NetworkManager(QObject *parent)
     : QObject(parent)
@@ -18,7 +18,7 @@ void NetworkManager::start()
     if (!m_udpSocket)
     {
         m_udpSocket = new QUdpSocket(this);
-        if (!m_udpSocket->bind(QHostAddress::LocalHost, LOCAL_UDP_PORT))
+        if (!m_udpSocket->bind(QHostAddress::AnyIPv4, LOCAL_UDP_PORT, QUdpSocket::ShareAddress | QUdpSocket::ReuseAddressHint))
         {
             qWarning() << "Failed to bind UDP on" << LOCAL_UDP_PORT;
             return;
@@ -46,7 +46,8 @@ void NetworkManager::onRadarDatagram()
         QHostAddress sender;
         quint16 senderPort;
         m_udpSocket->readDatagram(buf.data(), buf.size(), &sender, &senderPort);
-        qDebug() << "UDP recv from" << sender << senderPort << ":" << buf;
+        // For binary frames, avoid printing raw payload fully
+        qDebug() << "UDP recv from" << sender << senderPort << "len=" << buf.size();
         emit radarDatagramReceived(buf);
     }
 }

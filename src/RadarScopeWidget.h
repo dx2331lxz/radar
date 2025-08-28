@@ -20,6 +20,12 @@ public:
     void setMaxRangeMeters(float r);
     float maxRangeMeters() const { return m_maxRange; }
 
+    // 轨迹保留策略（默认：保留5分钟，单条轨迹最多2000点）
+    void setTrailRetentionMs(qint64 ms) { m_trailKeepMs = qMax<qint64>(1000, ms); }
+    qint64 trailRetentionMs() const { return m_trailKeepMs; }
+    void setMaxTrailPoints(int n) { m_maxTrailPoints = qMax(10, n); }
+    int maxTrailPoints() const { return m_maxTrailPoints; }
+
 public slots:
     void onTrackDatagram(const QByteArray &data);
 
@@ -28,12 +34,23 @@ protected:
     QSize minimumSizeHint() const override { return {360, 360}; }
 
 private:
-    struct TrailPoint { QPointF pos; qint64 ms; };
-    struct Trail { quint16 id; QVector<TrailPoint> points; };
+    struct TrailPoint
+    {
+        QPointF pos;
+        qint64 ms;
+    };
+    struct Trail
+    {
+        quint16 id;
+        QVector<TrailPoint> points;
+    };
 
     QPointF polarToPoint(float distance_m, float azimuth_deg, const QRectF &circle) const;
 
     float m_maxRange = 8000.0f; // 默认8km
     QVector<Trail> m_trails;    // 多目标轨迹
     QTimer m_cleanupTimer;      // 周期清理过期航迹
+
+    qint64 m_trailKeepMs = 5ll * 60ll * 1000ll; // 保留5分钟
+    int m_maxTrailPoints = 2000;                // 每条轨迹最大采样点
 };

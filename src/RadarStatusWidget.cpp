@@ -58,7 +58,7 @@ void RadarStatusWidget::onRadarDatagram(const QByteArray &data)
     RadarStatus s;
     if (!RadarStatusParser::parseLittleEndian(data, s))
     {
-        setText(lblConn, tr("未连接/无效报文"));
+        // 非状态报文：忽略，不改变当前显示；由超时计时器决定断开显示
         return;
     }
     setStatus(s);

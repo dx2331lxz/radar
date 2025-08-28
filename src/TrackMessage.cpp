@@ -2,6 +2,7 @@
 #include "TrackMessage.h"
 #include <QtEndian>
 #include <cstring>
+#include <QtGlobal>
 
 static quint16 rd_u16(const uchar *p) { return qFromLittleEndian<quint16>(p); }
 static quint32 rd_u32(const uchar *p) { return qFromLittleEndian<quint32>(p); }
@@ -24,7 +25,11 @@ bool TrackParser::parseLittleEndian(const QByteArray &payload, TrackMessage &out
 {
     // 计算最小长度：32(head)+1+8+8+4 + trackInfo(2+8+8+4+4+4+4+4+4+4+4+1*?)+16+2
     // 逐字段推进避免算错时越界。
-    if (payload.size() < 32 + 1 + 8 + 8 + 4 + 2 + 8 + 8 + 4 + 4 + 4 + 4 + 4 + 4 + 4 + 4 + 4 + 1 + 1 + 1 + 1 + 1 + 1 + 4 + 4 + 4 + 3 + 16 + 2)
+    // 最小长度精确为 142 字节：
+    // 32(head) + 1(ins) + 8(lon) + 8(lat) + 4(alt)
+    // + trackInfo(2 + 8 + 8 + 4 + 6*4 + 4 + 6 + 3*4 + 3 = 71)
+    // + 16(reserved) + 2(crc)
+    if (payload.size() < 142)
         return false;
 
     const uchar *p = reinterpret_cast<const uchar *>(payload.constData());
@@ -92,5 +97,52 @@ bool TrackParser::parseLittleEndian(const QByteArray &payload, TrackMessage &out
     off += 2;
 
     Q_UNUSED(off);
+
+    // 基本合法性校验（根据协议注释的范围）：
+    auto inRange = [](double v, double lo, double hi)
+    { return v >= lo && v <= hi; };
+    if (!inRange(out.radarLon, -180.0, 180.0))
+        return false;
+    if (!inRange(out.radarLat, -90.0, 90.0))
+        return false;
+    if (!inRange(double(out.info.tgtLon), -180.0, 180.0))
+        return false;
+    if (!inRange(double(out.info.tgtLat), -90.0, 90.0))
+        return false;
+    if (!inRange(double(out.info.azimuth), 0.0, 360.0))
+        return false;
+    if (!inRange(double(out.info.elevation), -90.0, 90.0))
+        return false;
+    if (!inRange(double(out.info.course), 0.0, 360.0))
+        return false;
+    if (!inRange(double(out.info.rawAzimuth), 0.0, 360.0))
+        return false;
+    if (!inRange(double(out.info.rawElevation), -90.0, 90.0))
+        return false;
+    if (out.info.quality > 100)
+        return false;
+    // 有些设备distance<0表示异常，过滤
+    if (out.info.distance < 0 || out.info.rawDistance < 0)
+        return false;
+
     return true;
+}
+
+bool TrackParser::hasReadableMagic(const QByteArray &payload)
+{
+    if (payload.size() < 4)
+        return false;
+    const uchar *p = reinterpret_cast<const uchar *>(payload.constData());
+    // 允许字母数字和空格的可读头，或特定示例中出现的 "H R G K"/其他大写
+    bool asciiLike = true;
+    for (int i = 0; i < 4; ++i)
+    {
+        uchar c = p[i];
+        if (!((c >= '0' && c <= '9') || (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || c == ' '))
+        {
+            asciiLike = false;
+            break;
+        }
+    }
+    return asciiLike;
 }
