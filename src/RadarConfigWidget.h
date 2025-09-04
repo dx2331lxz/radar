@@ -2,6 +2,7 @@
 #pragma once
 
 #include <QWidget>
+#include "RadarStatus.h"
 #include <QGroupBox>
 #include <QCheckBox>
 #include <QComboBox>
@@ -25,31 +26,31 @@ public:
 
 public slots:
     void onRadarDatagramReceived(const QByteArray &data);
+    // 从外部更新解析后的雷达状态（用于决定是否允许搜索）
+    void onRadarStatusUpdated(const RadarStatus &s);
 
 private slots:
     void onApply();
     void onReset();
     void onPreview();
-    void onSendInit();
-    void onSendCalibration();
+    // removed: onSendInit(), onSendCalibration()
     void onSendStandby();
     void onSendSearch();
     void onSendTrack();
     void onSendSimulation();
-    void onSendPower();
+    // removed: onSendPower()
     void onSendDeploy();
     void onSendServo();
 
 private:
     // UI builders
-    QGroupBox *buildInitSection();
-    QGroupBox *buildCalibSection();
+    // removed: buildInitSection(), buildCalibSection()
     QGroupBox *buildStandbySection();
     QGroupBox *buildSearchSection();
     QGroupBox *buildHeaderSection();
     QGroupBox *buildTrackSection();
     QGroupBox *buildSimSection();
-    QGroupBox *buildPowerSection();
+    // removed: buildPowerSection()
     QGroupBox *buildDeploySection();
     QGroupBox *buildServoSection();
 
@@ -57,13 +58,7 @@ private:
     QJsonObject gatherConfigJson() const;
 
     // Widgets per section
-    // 初始化任务
-    QComboBox *initModeCombo{};
-    QSpinBox *initTimeoutSpin{};
-
-    // 自校准任务
-    QCheckBox *calibEnable{};
-    QComboBox *calibTypeCombo{};
+    // removed: 初始化任务 / 自校准任务
 
     // 待机任务：精简为仅按钮
 
@@ -89,8 +84,7 @@ private:
     QComboBox *simScenarioCombo{};
     QSpinBox *simTargetCountSpin{};
 
-    // 上下电任务
-    QComboBox *powerActionCombo{}; // 上电/下电
+    // removed: 上下电任务
 
     // 展开撤收任务
     QComboBox *deployActionCombo{}; // 展开/撤收
@@ -105,19 +99,17 @@ private:
     QPushButton *previewBtn{};
     QTextEdit *previewEdit{};
     // Per-section send buttons
-    QPushButton *sendInitBtn{};
-    QPushButton *sendCalibBtn{};
+    // removed: sendInitBtn, sendCalibBtn
     QPushButton *sendStandbyBtn{};
     QPushButton *sendSearchBtn{};
     QPushButton *sendTrackBtn{};
     QPushButton *sendSimBtn{};
-    QPushButton *sendPowerBtn{};
+    // removed: sendPowerBtn
     QPushButton *sendDeployBtn{};
     QPushButton *sendServoBtn{};
 
 signals:
-    void sendInitRequested(const QJsonObject &cfg);
-    void sendCalibrationRequested(const QJsonObject &cfg);
+    // removed: sendInitRequested, sendCalibrationRequested
     void sendStandbyRequested(const QJsonObject &cfg);
     void sendSearchRequested(const QJsonObject &cfg);
     // 发送二进制搜索任务包
@@ -128,10 +120,13 @@ signals:
     void targetAddressChanged(const QString &ip, int port);
     void sendTrackRequested(const QJsonObject &cfg);
     void sendSimulationRequested(const QJsonObject &cfg);
-    void sendPowerRequested(const QJsonObject &cfg);
+    // removed: sendPowerRequested
     void sendDeployRequested(const QJsonObject &cfg);
+    // 发送二进制展开/撤收任务包
+    void sendDeployPacketRequested(const QByteArray &packet);
     void sendServoRequested(const QJsonObject &cfg);
 
 private:
     bool m_logIncoming = false; // 默认关闭接收报文日志
+    bool m_isRetracted = false; // 最近一次状态是否处于撤收
 };

@@ -74,7 +74,7 @@ void RadarStatusWidget::setStatus(const RadarStatus &s)
     setText(lblDetectRange, QString::number(s.detectRange));
     setText(lblINS, s.insValid ? tr("有效") : tr("无效"));
     setText(lblSim, s.simOn ? tr("已开启") : tr("未开启"));
-    setText(lblRetract, s.retracted ? tr("已撤收") : tr("未撤收"));
+    setText(lblRetract, s.retracted ? tr("已撤收") : tr("展开"));
     setText(lblDrive, s.driving ? tr("动态行车") : tr("静态驻车"));
     setText(lblLon, QString::number(s.longitude, 'f', 6));
     setText(lblLat, QString::number(s.latitude, 'f', 6));

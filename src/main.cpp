@@ -68,15 +68,14 @@ int main(int argc, char *argv[])
         net.sendToRadar(d.toJson(QJsonDocument::Compact));
     };
 
-    QObject::connect(cfg, &RadarConfigWidget::sendInitRequested, cfg, sendToRadar);
-    QObject::connect(cfg, &RadarConfigWidget::sendCalibrationRequested, cfg, sendToRadar);
+    // removed: init/calibration panel and signals
     QObject::connect(cfg, &RadarConfigWidget::sendStandbyRequested, cfg, sendToRadar);
     QObject::connect(cfg, &RadarConfigWidget::sendStandbyRequested, &window, [scope](const QJsonObject &)
-                     { scope->setSearchActive(false); });
+                     { scope->setSearchActive(false); scope->clearTrails(); });
     // 二进制待机任务：发送并关闭扫描线
     QObject::connect(cfg, &RadarConfigWidget::sendStandbyPacketRequested, &net, &NetworkManager::sendToRadar);
     QObject::connect(cfg, &RadarConfigWidget::sendStandbyPacketRequested, &window, [scope](const QByteArray &)
-                     { scope->setSearchActive(false); });
+                     { scope->setSearchActive(false); scope->clearTrails(); });
     QObject::connect(cfg, &RadarConfigWidget::sendSearchRequested, cfg, sendToRadar);
     QObject::connect(cfg, &RadarConfigWidget::sendSearchRequested, &window, [scope](const QJsonObject &)
                      { scope->setSearchActive(true); });
@@ -93,8 +92,17 @@ int main(int argc, char *argv[])
     QObject::connect(cfg, &RadarConfigWidget::sendTrackRequested, &window, [scope](const QJsonObject &)
                      { scope->setSearchActive(false); });
     QObject::connect(cfg, &RadarConfigWidget::sendSimulationRequested, cfg, sendToRadar);
-    QObject::connect(cfg, &RadarConfigWidget::sendPowerRequested, cfg, sendToRadar);
+    // removed: power panel and signal
     QObject::connect(cfg, &RadarConfigWidget::sendDeployRequested, cfg, sendToRadar);
+    // 二进制展开/撤收任务：直接发送到雷达
+    QObject::connect(cfg, &RadarConfigWidget::sendDeployPacketRequested, &net, &NetworkManager::sendToRadar);
+    // 撤收后：待机、回零、关锁 => 我们在UI上先做待机和清轨迹（回零/锁由设备侧执行）
+    QObject::connect(cfg, &RadarConfigWidget::sendDeployPacketRequested, &window, [scope](const QByteArray &packet)
+                     {
+        Q_UNUSED(packet);
+        // 如果是撤收（任务类型0x00），停止扫描并清除轨迹
+        scope->setSearchActive(false);
+        scope->clearTrails(); });
     QObject::connect(cfg, &RadarConfigWidget::sendServoRequested, cfg, sendToRadar);
 
     // log messages from network
@@ -108,10 +116,12 @@ int main(int argc, char *argv[])
     QObject::connect(&net, &NetworkManager::radarDatagramReceived, status, &RadarStatusWidget::onRadarDatagram);
     QObject::connect(&net, &NetworkManager::radarDatagramReceived, scope, &RadarScopeWidget::onTrackDatagram);
     // 用状态报文动态更新量程
-    QObject::connect(&net, &NetworkManager::radarDatagramReceived, &window, [scope](const QByteArray &data)
+    QObject::connect(&net, &NetworkManager::radarDatagramReceived, &window, [scope, cfg](const QByteArray &data)
                      {
         RadarStatus s; if (RadarStatusParser::parseLittleEndian(data, s)) {
             if (s.detectRange > 0) scope->setMaxRangeMeters(float(s.detectRange));
+            // 通知配置面板当前雷达是否为撤收状态
+            cfg->onRadarStatusUpdated(s);
         } });
 
     return app.exec();

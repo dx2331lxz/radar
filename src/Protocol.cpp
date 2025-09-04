@@ -150,4 +150,36 @@ namespace Protocol
         return packet;
     }
 
+    QByteArray buildDeployTaskPacket(const HeaderConfig &cfg, quint8 taskType)
+    {
+        // 结构同待机/搜索：1B任务类型 + 16B预留 + 2B校验
+        const int bodyNoCkLen = 1 + 16;
+        const int total = 32 + bodyNoCkLen + 2;
+
+        static quint8 s_seq = 0;
+        static quint32 s_count = 0;
+        const quint8 seq = s_seq++;
+        const quint32 cnt = ++s_count;
+
+        QByteArray packet;
+        packet.reserve(total);
+        QByteArray head = buildFrameHead(cfg, quint16(total), seq, cnt);
+        packet.append(head);
+
+        packet.append(char(taskType));
+        packet.append(QByteArray(16, '\0'));
+
+        quint16 ck = 0;
+        if (cfg.checkMethod == 1)
+            ck = checksumSum16(packet);
+        else if (cfg.checkMethod == 2)
+            ck = checksumCrc16IBM(packet);
+        else
+            ck = 0;
+        quint16 le = qToLittleEndian(ck);
+        packet.append(reinterpret_cast<const char *>(&le), sizeof(le));
+
+        return packet;
+    }
+
 } // namespace Protocol

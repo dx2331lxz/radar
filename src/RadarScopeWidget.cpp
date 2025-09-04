@@ -255,3 +255,10 @@ void RadarScopeWidget::setSearchActive(bool on)
     }
     update();
 }
+
+void RadarScopeWidget::clearTrails()
+{
+    m_trails.clear();
+    m_notices.clear();
+    update();
+}

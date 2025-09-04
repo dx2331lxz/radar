@@ -38,6 +38,8 @@ public slots:
     // 开/关搜索扫描线
     void setSearchActive(bool on);
     void setSweepSpeedDegPerSec(float degPerSec) { m_sweepSpeed = qBound(1.0f, degPerSec, 360.0f); }
+    // 清空当前显示的目标轨迹
+    void clearTrails();
 
 protected:
     void paintEvent(QPaintEvent *) override;

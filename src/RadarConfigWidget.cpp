@@ -1,6 +1,7 @@
 // RadarConfigWidget.cpp
 #include "RadarConfigWidget.h"
 #include "Protocol.h"
+#include "RadarStatus.h"
 #include "MessageIds.h"
 
 #include <QVBoxLayout>
@@ -24,12 +25,12 @@ RadarConfigWidget::RadarConfigWidget(QWidget *parent)
 {
     auto *root = new QVBoxLayout(this);
 
-    // Build sections in user flow order:
-    // Header -> Power -> Init -> Calibration -> Deploy -> Standby -> Search -> Track -> Simulation -> Servo
+    // Build sections in user flow order (removed: Power/Init/Calibration per request):
+    // Header -> Deploy -> Standby -> Search -> Track -> Simulation -> Servo
     root->addWidget(buildHeaderSection());
-    root->addWidget(buildPowerSection());
-    root->addWidget(buildInitSection());
-    root->addWidget(buildCalibSection());
+    // removed: root->addWidget(buildPowerSection());
+    // removed: root->addWidget(buildInitSection());
+    // removed: root->addWidget(buildCalibSection());
     root->addWidget(buildDeploySection());
     root->addWidget(buildStandbySection());
     root->addWidget(buildSearchSection());
@@ -107,38 +108,6 @@ QGroupBox *RadarConfigWidget::buildHeaderSection()
     return wrapWithTitle(tr("协议帧头配置"), w);
 }
 
-QGroupBox *RadarConfigWidget::buildInitSection()
-{
-    auto *w = new QWidget();
-    auto *form = new QFormLayout(w);
-    initModeCombo = new QComboBox();
-    initModeCombo->addItems({tr("冷启动"), tr("热启动"), tr("快速启动")});
-    initTimeoutSpin = new QSpinBox();
-    initTimeoutSpin->setRange(1, 600);
-    initTimeoutSpin->setSuffix(tr(" s"));
-    form->addRow(tr("启动模式"), initModeCombo);
-    form->addRow(tr("超时时间"), initTimeoutSpin);
-    sendInitBtn = new QPushButton(tr("发送 初始化"));
-    form->addRow(sendInitBtn);
-    connect(sendInitBtn, &QPushButton::clicked, this, &RadarConfigWidget::onSendInit);
-    return wrapWithTitle(tr("初始化任务"), w);
-}
-
-QGroupBox *RadarConfigWidget::buildCalibSection()
-{
-    auto *w = new QWidget();
-    auto *form = new QFormLayout(w);
-    calibEnable = new QCheckBox(tr("启用自校准"));
-    calibTypeCombo = new QComboBox();
-    calibTypeCombo->addItems({tr("接收通道"), tr("发射通道"), tr("全链路")});
-    form->addRow(calibEnable);
-    form->addRow(tr("校准类型"), calibTypeCombo);
-    sendCalibBtn = new QPushButton(tr("发送 自校准"));
-    form->addRow(sendCalibBtn);
-    connect(sendCalibBtn, &QPushButton::clicked, this, &RadarConfigWidget::onSendCalibration);
-    return wrapWithTitle(tr("自校准任务"), w);
-}
-
 QGroupBox *RadarConfigWidget::buildStandbySection()
 {
     auto *w = new QWidget();
@@ -198,19 +167,6 @@ QGroupBox *RadarConfigWidget::buildSimSection()
     return wrapWithTitle(tr("雷达模拟任务"), w);
 }
 
-QGroupBox *RadarConfigWidget::buildPowerSection()
-{
-    auto *w = new QWidget();
-    auto *form = new QFormLayout(w);
-    powerActionCombo = new QComboBox();
-    powerActionCombo->addItems({tr("上电"), tr("下电")});
-    form->addRow(tr("动作"), powerActionCombo);
-    sendPowerBtn = new QPushButton(tr("发送 上下电"));
-    form->addRow(sendPowerBtn);
-    connect(sendPowerBtn, &QPushButton::clicked, this, &RadarConfigWidget::onSendPower);
-    return wrapWithTitle(tr("雷达上下电任务"), w);
-}
-
 QGroupBox *RadarConfigWidget::buildDeploySection()
 {
     auto *w = new QWidget();
@@ -244,15 +200,7 @@ QGroupBox *RadarConfigWidget::buildServoSection()
 
 void RadarConfigWidget::setDefaults()
 {
-    initModeCombo->setCurrentIndex(0);
-    initTimeoutSpin->setValue(60);
-
-    calibEnable->setChecked(false);
-    calibTypeCombo->setCurrentIndex(0);
-
-    // 待机任务无可配置项
-
-    // 搜索任务无可配置项，保持默认
+    // 待机/搜索任务无可配置项，保持默认
 
     trackEnable->setChecked(false);
     trackTargetIdEdit->clear();
@@ -262,7 +210,6 @@ void RadarConfigWidget::setDefaults()
     simScenarioCombo->setCurrentIndex(0);
     simTargetCountSpin->setValue(10);
 
-    powerActionCombo->setCurrentIndex(0);
     deployActionCombo->setCurrentIndex(0);
 
     servoActionCombo->setCurrentIndex(0);
@@ -290,14 +237,7 @@ void RadarConfigWidget::setDefaults()
 QJsonObject RadarConfigWidget::gatherConfigJson() const
 {
     QJsonObject j;
-    j["init"] = QJsonObject{
-        {"mode", initModeCombo->currentText()},
-        {"timeout_s", initTimeoutSpin->value()},
-    };
-    j["calibration"] = QJsonObject{
-        {"enabled", calibEnable->isChecked()},
-        {"type", calibTypeCombo->currentText()},
-    };
+    // Removed from panel: init/calibration/power
     j["standby"] = QJsonObject{{"action", QStringLiteral("standby")}};
     // 精简：只标注搜索操作，无具体参数
     j["search"] = QJsonObject{{"action", QStringLiteral("search")}};
@@ -311,7 +251,7 @@ QJsonObject RadarConfigWidget::gatherConfigJson() const
         {"scenario", simScenarioCombo->currentText()},
         {"target_count", simTargetCountSpin->value()},
     };
-    j["power"] = QJsonObject{{"action", powerActionCombo->currentText()}};
+    // j["power"] omitted
     j["deploy"] = QJsonObject{{"action", deployActionCombo->currentText()}};
     j["servo"] = QJsonObject{
         {"action", servoActionCombo->currentText()},
@@ -353,23 +293,12 @@ void RadarConfigWidget::onRadarDatagramReceived(const QByteArray &data)
     previewEdit->setPlainText(prev);
 }
 
-// Per-section send handlers: build that section's JSON, emit signal and show in preview
-void RadarConfigWidget::onSendInit()
+void RadarConfigWidget::onRadarStatusUpdated(const RadarStatus &s)
 {
-    QJsonObject j{
-        {"mode", initModeCombo->currentText()},
-        {"timeout_s", initTimeoutSpin->value()},
-    };
-    emit sendInitRequested(j);
-    previewEdit->setPlainText(QString::fromUtf8(QJsonDocument(j).toJson(QJsonDocument::Indented)));
+    m_isRetracted = s.retracted;
 }
 
-void RadarConfigWidget::onSendCalibration()
-{
-    QJsonObject j{{"enabled", calibEnable->isChecked()}, {"type", calibTypeCombo->currentText()}};
-    emit sendCalibrationRequested(j);
-    previewEdit->setPlainText(QString::fromUtf8(QJsonDocument(j).toJson(QJsonDocument::Indented)));
-}
+// Per-section send handlers: build that section's JSON, emit signal and show in preview
 
 void RadarConfigWidget::onSendStandby()
 {
@@ -394,6 +323,13 @@ void RadarConfigWidget::onSendStandby()
 
 void RadarConfigWidget::onSendSearch()
 {
+    // 如果雷达处于撤收状态，阻止发送并提示
+    if (m_isRetracted)
+    {
+        previewEdit->setPlainText(tr("雷达当前处于撤收状态，无法进入搜索。请先展开雷达。"));
+        return;
+    }
+
     // 1) JSON预览仅显示操作类型
     QJsonObject j{{"action", QStringLiteral("search")}};
     previewEdit->setPlainText(QString::fromUtf8(QJsonDocument(j).toJson(QJsonDocument::Indented)));
@@ -428,18 +364,28 @@ void RadarConfigWidget::onSendSimulation()
     previewEdit->setPlainText(QString::fromUtf8(QJsonDocument(j).toJson(QJsonDocument::Indented)));
 }
 
-void RadarConfigWidget::onSendPower()
-{
-    QJsonObject j{{"action", powerActionCombo->currentText()}};
-    emit sendPowerRequested(j);
-    previewEdit->setPlainText(QString::fromUtf8(QJsonDocument(j).toJson(QJsonDocument::Indented)));
-}
-
 void RadarConfigWidget::onSendDeploy()
 {
-    QJsonObject j{{"action", deployActionCombo->currentText()}};
+    const bool isDeploy = (deployActionCombo && deployActionCombo->currentIndex() == 0); // 0: 展开, 1: 撤收
+    QJsonObject j{{"action", isDeploy ? QStringLiteral("deploy") : QStringLiteral("retract")}};
     emit sendDeployRequested(j);
     previewEdit->setPlainText(QString::fromUtf8(QJsonDocument(j).toJson(QJsonDocument::Indented)));
+
+    // 构造并发送二进制“展开/撤收任务”数据包（任务类型：0x01 展开，0x00 撤收）
+    Protocol::HeaderConfig hc;
+    hc.deviceModel = quint16(hdrDeviceModel ? hdrDeviceModel->value() : 6000);
+    hc.msgIdRadar = ProtocolIds::CmdDeploy; // 展开/撤收任务ID
+    hc.msgIdExternal = quint16(hdrMsgIdExternal ? hdrMsgIdExternal->value() : 0);
+    hc.deviceIdRadar = quint16(hdrDevIdRadar ? hdrDevIdRadar->value() : 0);
+    hc.deviceIdExternal = quint16(hdrDevIdExternal ? hdrDevIdExternal->value() : 0);
+    hc.checkMethod = quint8(hdrCheckMethod ? hdrCheckMethod->currentData().toInt() : 1);
+
+    if (targetIpEdit && targetPortSpin)
+        emit targetAddressChanged(targetIpEdit->text(), targetPortSpin->value());
+
+    const quint8 taskType = isDeploy ? 0x01 : 0x00;
+    QByteArray packet = Protocol::buildDeployTaskPacket(hc, taskType);
+    emit sendDeployPacketRequested(packet);
 }
 
 void RadarConfigWidget::onSendServo()
