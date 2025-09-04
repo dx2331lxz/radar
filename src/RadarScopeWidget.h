@@ -35,6 +35,9 @@ public:
 
 public slots:
     void onTrackDatagram(const QByteArray &data);
+    // 开/关搜索扫描线
+    void setSearchActive(bool on);
+    void setSweepSpeedDegPerSec(float degPerSec) { m_sweepSpeed = qBound(1.0f, degPerSec, 360.0f); }
 
 protected:
     void paintEvent(QPaintEvent *) override;
@@ -68,4 +71,10 @@ private:
     bool m_showNotices = true;
     qint64 m_noticeKeepMs = 3000; // 提示保留3s
     QVector<Notice> m_notices;    // 左上角提示
+
+    // 扫描线（搜索模式）
+    bool m_sweepOn = false;
+    QTimer m_sweepTimer;        // 动画定时器
+    float m_sweepAngle = 0.0f;  // 0..360，北为0，顺时针增加
+    float m_sweepSpeed = 60.0f; // deg/s
 };

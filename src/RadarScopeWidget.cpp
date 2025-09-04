@@ -1,6 +1,8 @@
 // RadarScopeWidget.cpp
 #include "RadarScopeWidget.h"
 #include <QPainter>
+#include <QPainterPath>
+#include <QConicalGradient>
 #include <QtMath>
 #include <QDateTime>
 
@@ -26,6 +28,16 @@ RadarScopeWidget::RadarScopeWidget(QWidget *parent)
         m_trails.erase(std::remove_if(m_trails.begin(), m_trails.end(), [](const Trail &tr){ return tr.points.isEmpty(); }), m_trails.end());
         update(); });
     m_cleanupTimer.start();
+
+    // 扫描线动画：每16ms更新一次角度
+    m_sweepTimer.setInterval(16);
+    connect(&m_sweepTimer, &QTimer::timeout, this, [this]
+            {
+        if (!m_sweepOn) return;
+        // 每tick转动角度
+        m_sweepAngle += m_sweepSpeed * (m_sweepTimer.interval() / 1000.0f);
+        while (m_sweepAngle >= 360.0f) m_sweepAngle -= 360.0f;
+        update(); });
 }
 
 void RadarScopeWidget::setMaxRangeMeters(float r)
@@ -185,4 +197,61 @@ void RadarScopeWidget::paintEvent(QPaintEvent *)
             y += h + 6;
         }
     }
+
+    // 扫描线与余辉
+    if (m_sweepOn)
+    {
+        // 计算几何
+        const float R = circle.width() / 2.0f;
+        const QPointF c = circle.center();
+        // 扫描方向：从中心向外一条亮线 + 线后短扇形余辉
+        const float theta = qDegreesToRadians(90.0f - m_sweepAngle);
+        QPointF tip(c.x() + R * qCos(theta), c.y() - R * qSin(theta));
+
+        // 主扫描线
+        QPen pen(QColor(80, 220, 120), 2);
+        p.setPen(pen);
+        p.drawLine(c, tip);
+
+        // 余辉扇形（约6度宽，线性渐隐）
+        p.setPen(Qt::NoPen);
+        QConicalGradient grad(c, m_sweepAngle);
+        QColor head = QColor(100, 255, 140, 120);
+        QColor tail = QColor(0, 0, 0, 0);
+        grad.setColorAt(0.00, head);
+        grad.setColorAt(0.25, QColor(60, 180, 100, 60));
+        grad.setColorAt(1.00, tail);
+        p.setBrush(grad);
+
+        // 使用path绘制窄扇形
+        QPainterPath path;
+        path.moveTo(c);
+        // 扇形角宽（度）
+        const float span = 8.0f;
+        QRectF arcRect(circle);
+        // Qt的drawPie以3点钟方向为0度，逆时针为正，因此做一个角度换算：
+        float startAngle = -(m_sweepAngle + span / 2.0f) + 90.0f; // 转到Qt角度系
+        // 转为1/16度
+        int start16 = int(startAngle * 16.0f);
+        int span16 = int(span * 16.0f);
+        p.drawPie(arcRect, start16, span16);
+    }
+}
+
+void RadarScopeWidget::setSearchActive(bool on)
+{
+    if (m_sweepOn == on)
+        return;
+    m_sweepOn = on;
+    if (m_sweepOn)
+    {
+        m_sweepAngle = 0.0f;
+        if (!m_sweepTimer.isActive())
+            m_sweepTimer.start();
+    }
+    else
+    {
+        m_sweepTimer.stop();
+    }
+    update();
 }

@@ -71,8 +71,18 @@ int main(int argc, char *argv[])
     QObject::connect(cfg, &RadarConfigWidget::sendInitRequested, cfg, sendToRadar);
     QObject::connect(cfg, &RadarConfigWidget::sendCalibrationRequested, cfg, sendToRadar);
     QObject::connect(cfg, &RadarConfigWidget::sendStandbyRequested, cfg, sendToRadar);
+    QObject::connect(cfg, &RadarConfigWidget::sendStandbyRequested, &window, [scope](const QJsonObject &)
+                     { scope->setSearchActive(false); });
+    // 二进制待机任务：发送并关闭扫描线
+    QObject::connect(cfg, &RadarConfigWidget::sendStandbyPacketRequested, &net, &NetworkManager::sendToRadar);
+    QObject::connect(cfg, &RadarConfigWidget::sendStandbyPacketRequested, &window, [scope](const QByteArray &)
+                     { scope->setSearchActive(false); });
     QObject::connect(cfg, &RadarConfigWidget::sendSearchRequested, cfg, sendToRadar);
+    QObject::connect(cfg, &RadarConfigWidget::sendSearchRequested, &window, [scope](const QJsonObject &)
+                     { scope->setSearchActive(true); });
     QObject::connect(cfg, &RadarConfigWidget::sendSearchPacketRequested, &net, &NetworkManager::sendToRadar);
+    QObject::connect(cfg, &RadarConfigWidget::sendSearchPacketRequested, &window, [scope](const QByteArray &)
+                     { scope->setSearchActive(true); });
     QObject::connect(cfg, &RadarConfigWidget::targetAddressChanged, &window, [&net](const QString &ip, int port)
                      {
         Q_UNUSED(ip);
@@ -80,6 +90,8 @@ int main(int argc, char *argv[])
     net.setTarget(QHostAddress(QHostAddress::LocalHost), 6280);
     qDebug() << "Target locked to" << QHostAddress(QHostAddress::LocalHost).toString() << 6280; });
     QObject::connect(cfg, &RadarConfigWidget::sendTrackRequested, cfg, sendToRadar);
+    QObject::connect(cfg, &RadarConfigWidget::sendTrackRequested, &window, [scope](const QJsonObject &)
+                     { scope->setSearchActive(false); });
     QObject::connect(cfg, &RadarConfigWidget::sendSimulationRequested, cfg, sendToRadar);
     QObject::connect(cfg, &RadarConfigWidget::sendPowerRequested, cfg, sendToRadar);
     QObject::connect(cfg, &RadarConfigWidget::sendDeployRequested, cfg, sendToRadar);

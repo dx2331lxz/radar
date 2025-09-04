@@ -1,6 +1,7 @@
 // RadarConfigWidget.cpp
 #include "RadarConfigWidget.h"
 #include "Protocol.h"
+#include "MessageIds.h"
 
 #include <QVBoxLayout>
 #include <QHBoxLayout>
@@ -76,7 +77,7 @@ QGroupBox *RadarConfigWidget::buildHeaderSection()
     hdrCheckMethod->addItem(tr("不校验 (0)"), 0);
     hdrCheckMethod->addItem(tr("和校验 (1)"), 1);
     hdrCheckMethod->addItem(tr("CRC-16 (2)"), 2);
-    hdrCheckMethod->setCurrentIndex(1);
+    hdrCheckMethod->setCurrentIndex(2);
 
     // 目标IP与端口
     targetIpEdit = new QLineEdit();
@@ -89,7 +90,7 @@ QGroupBox *RadarConfigWidget::buildHeaderSection()
 
     hdrMsgIdRadar = new QSpinBox();
     hdrMsgIdRadar->setRange(0, 65535);
-    hdrMsgIdRadar->setValue(0x0101); // 假定：搜索任务报文ID
+    hdrMsgIdRadar->setValue(ProtocolIds::CmdSearch); // 仿真器搜索控制ID
     hdrMsgIdExternal = new QSpinBox();
     hdrMsgIdExternal->setRange(0, 65535);
     hdrMsgIdExternal->setValue(0);
@@ -142,15 +143,7 @@ QGroupBox *RadarConfigWidget::buildStandbySection()
 {
     auto *w = new QWidget();
     auto *form = new QFormLayout(w);
-    standbyEnable = new QCheckBox(tr("进入待机"));
-    standbyPowerCombo = new QComboBox();
-    standbyPowerCombo->addItems({tr("低功耗"), tr("常规功耗")});
-    standbyDurationSpin = new QSpinBox();
-    standbyDurationSpin->setRange(0, 24 * 60);
-    standbyDurationSpin->setSuffix(tr(" min"));
-    form->addRow(standbyEnable);
-    form->addRow(tr("功耗模式"), standbyPowerCombo);
-    form->addRow(tr("持续时长"), standbyDurationSpin);
+    // 精简：仅提供一个按钮用于触发待机控制包发送
     sendStandbyBtn = new QPushButton(tr("发送 待机"));
     form->addRow(sendStandbyBtn);
     connect(sendStandbyBtn, &QPushButton::clicked, this, &RadarConfigWidget::onSendStandby);
@@ -161,20 +154,7 @@ QGroupBox *RadarConfigWidget::buildSearchSection()
 {
     auto *w = new QWidget();
     auto *form = new QFormLayout(w);
-    searchEnable = new QCheckBox(tr("启用搜索"));
-    searchBeamWidthSpin = new QDoubleSpinBox();
-    searchBeamWidthSpin->setRange(0.1, 60.0);
-    searchBeamWidthSpin->setSingleStep(0.1);
-    searchBeamWidthSpin->setSuffix(tr(" °"));
-    searchRangeKmSpin = new QSpinBox();
-    searchRangeKmSpin->setRange(1, 500);
-    searchRangeKmSpin->setSuffix(tr(" km"));
-    searchWaveformCombo = new QComboBox();
-    searchWaveformCombo->addItems({tr("LFM"), tr("Barker"), tr("PhaseCode")});
-    form->addRow(searchEnable);
-    form->addRow(tr("波束宽度"), searchBeamWidthSpin);
-    form->addRow(tr("搜索距离"), searchRangeKmSpin);
-    form->addRow(tr("波形类型"), searchWaveformCombo);
+    // 精简：仅提供一个按钮用于触发搜索控制包发送
     sendSearchBtn = new QPushButton(tr("发送 搜索"));
     form->addRow(sendSearchBtn);
     connect(sendSearchBtn, &QPushButton::clicked, this, &RadarConfigWidget::onSendSearch);
@@ -270,14 +250,9 @@ void RadarConfigWidget::setDefaults()
     calibEnable->setChecked(false);
     calibTypeCombo->setCurrentIndex(0);
 
-    standbyEnable->setChecked(false);
-    standbyPowerCombo->setCurrentIndex(0);
-    standbyDurationSpin->setValue(0);
+    // 待机任务无可配置项
 
-    searchEnable->setChecked(true);
-    searchBeamWidthSpin->setValue(3.0);
-    searchRangeKmSpin->setValue(50);
-    searchWaveformCombo->setCurrentIndex(0);
+    // 搜索任务无可配置项，保持默认
 
     trackEnable->setChecked(false);
     trackTargetIdEdit->clear();
@@ -297,7 +272,7 @@ void RadarConfigWidget::setDefaults()
     if (hdrDeviceModel)
         hdrDeviceModel->setValue(6000);
     if (hdrMsgIdRadar)
-        hdrMsgIdRadar->setValue(0x0101);
+        hdrMsgIdRadar->setValue(ProtocolIds::CmdSearch);
     if (hdrMsgIdExternal)
         hdrMsgIdExternal->setValue(0);
     if (hdrDevIdRadar)
@@ -305,7 +280,7 @@ void RadarConfigWidget::setDefaults()
     if (hdrDevIdExternal)
         hdrDevIdExternal->setValue(0);
     if (hdrCheckMethod)
-        hdrCheckMethod->setCurrentIndex(1); // 和校验
+        hdrCheckMethod->setCurrentIndex(2); // CRC-16
     if (targetIpEdit)
         targetIpEdit->setText("127.0.0.1");
     if (targetPortSpin)
@@ -323,17 +298,9 @@ QJsonObject RadarConfigWidget::gatherConfigJson() const
         {"enabled", calibEnable->isChecked()},
         {"type", calibTypeCombo->currentText()},
     };
-    j["standby"] = QJsonObject{
-        {"enabled", standbyEnable->isChecked()},
-        {"power_mode", standbyPowerCombo->currentText()},
-        {"duration_min", standbyDurationSpin->value()},
-    };
-    j["search"] = QJsonObject{
-        {"enabled", searchEnable->isChecked()},
-        {"beam_width_deg", searchBeamWidthSpin->value()},
-        {"range_km", searchRangeKmSpin->value()},
-        {"waveform", searchWaveformCombo->currentText()},
-    };
+    j["standby"] = QJsonObject{{"action", QStringLiteral("standby")}};
+    // 精简：只标注搜索操作，无具体参数
+    j["search"] = QJsonObject{{"action", QStringLiteral("search")}};
     j["track"] = QJsonObject{
         {"enabled", trackEnable->isChecked()},
         {"target_id", trackTargetIdEdit->text()},
@@ -406,21 +373,35 @@ void RadarConfigWidget::onSendCalibration()
 
 void RadarConfigWidget::onSendStandby()
 {
-    QJsonObject j{{"enabled", standbyEnable->isChecked()}, {"power_mode", standbyPowerCombo->currentText()}, {"duration_min", standbyDurationSpin->value()}};
-    emit sendStandbyRequested(j);
+    // 预览仅展示动作
+    QJsonObject j{{"action", QStringLiteral("standby")}};
     previewEdit->setPlainText(QString::fromUtf8(QJsonDocument(j).toJson(QJsonDocument::Indented)));
+
+    // 构造并发送二进制“待机任务”数据包（任务类型0x00）
+    Protocol::HeaderConfig hc;
+    hc.deviceModel = quint16(hdrDeviceModel ? hdrDeviceModel->value() : 6000);
+    hc.msgIdRadar = ProtocolIds::CmdStandby; // 待机任务ID
+    hc.msgIdExternal = quint16(hdrMsgIdExternal ? hdrMsgIdExternal->value() : 0);
+    hc.deviceIdRadar = quint16(hdrDevIdRadar ? hdrDevIdRadar->value() : 0);
+    hc.deviceIdExternal = quint16(hdrDevIdExternal ? hdrDevIdExternal->value() : 0);
+    hc.checkMethod = quint8(hdrCheckMethod ? hdrCheckMethod->currentData().toInt() : 1);
+
+    if (targetIpEdit && targetPortSpin)
+        emit targetAddressChanged(targetIpEdit->text(), targetPortSpin->value());
+    QByteArray packet = Protocol::buildStandbyTaskPacket(hc, 0x00);
+    emit sendStandbyPacketRequested(packet);
 }
 
 void RadarConfigWidget::onSendSearch()
 {
-    // 1) 仍保留JSON预览，方便查看UI参数
-    QJsonObject j{{"enabled", searchEnable->isChecked()}, {"beam_width_deg", searchBeamWidthSpin->value()}, {"range_km", searchRangeKmSpin->value()}, {"waveform", searchWaveformCombo->currentText()}, {"header", QJsonObject{{"device_model", hdrDeviceModel ? hdrDeviceModel->value() : 6000}, {"msg_id_radar", hdrMsgIdRadar ? hdrMsgIdRadar->value() : 0x0101}, {"msg_id_external", hdrMsgIdExternal ? hdrMsgIdExternal->value() : 0}, {"dev_id_radar", hdrDevIdRadar ? hdrDevIdRadar->value() : 0}, {"dev_id_external", hdrDevIdExternal ? hdrDevIdExternal->value() : 0}, {"check_method", hdrCheckMethod ? hdrCheckMethod->currentData().toInt() : 1}}}};
+    // 1) JSON预览仅显示操作类型
+    QJsonObject j{{"action", QStringLiteral("search")}};
     previewEdit->setPlainText(QString::fromUtf8(QJsonDocument(j).toJson(QJsonDocument::Indented)));
 
     // 2) 构造并发送二进制“搜索任务”数据包（任务类型固定0x01）
     Protocol::HeaderConfig hc;
     hc.deviceModel = quint16(hdrDeviceModel ? hdrDeviceModel->value() : 6000);
-    hc.msgIdRadar = quint16(hdrMsgIdRadar ? hdrMsgIdRadar->value() : 0x0101);
+    hc.msgIdRadar = ProtocolIds::CmdSearch; // 固定为仿真器识别的SEARCH控制
     hc.msgIdExternal = quint16(hdrMsgIdExternal ? hdrMsgIdExternal->value() : 0);
     hc.deviceIdRadar = quint16(hdrDevIdRadar ? hdrDevIdRadar->value() : 0);
     hc.deviceIdExternal = quint16(hdrDevIdExternal ? hdrDevIdExternal->value() : 0);

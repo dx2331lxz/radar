@@ -65,16 +65,10 @@ private:
     QCheckBox *calibEnable{};
     QComboBox *calibTypeCombo{};
 
-    // 待机任务
-    QCheckBox *standbyEnable{};
-    QComboBox *standbyPowerCombo{};
-    QSpinBox *standbyDurationSpin{};
+    // 待机任务：精简为仅按钮
 
     // 搜索任务
-    QCheckBox *searchEnable{};
-    QDoubleSpinBox *searchBeamWidthSpin{};
-    QSpinBox *searchRangeKmSpin{};
-    QComboBox *searchWaveformCombo{};
+    // 精简：只保留一个“发送 搜索”按钮，不再提供搜索相关的可配置项
     // 帧头参数
     QSpinBox *hdrDeviceModel{};
     QSpinBox *hdrDevIdRadar{};
@@ -128,6 +122,8 @@ signals:
     void sendSearchRequested(const QJsonObject &cfg);
     // 发送二进制搜索任务包
     void sendSearchPacketRequested(const QByteArray &packet);
+    // 发送二进制待机任务包
+    void sendStandbyPacketRequested(const QByteArray &packet);
     // 通知更新目标地址
     void targetAddressChanged(const QString &ip, int port);
     void sendTrackRequested(const QJsonObject &cfg);
