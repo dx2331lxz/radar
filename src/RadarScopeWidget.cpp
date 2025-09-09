@@ -25,7 +25,7 @@ RadarScopeWidget::RadarScopeWidget(QWidget *parent)
             }
         }
     // 移除空轨迹或超出检测范围的轨迹
-    m_trails.erase(std::remove_if(m_trails.begin(), m_trails.end(), [this](const Trail &tr){ return tr.points.isEmpty() || tr.lastDistance > m_maxRange; }), m_trails.end());
+    m_trails.erase(std::remove_if(m_trails.begin(), m_trails.end(), [this](const Trail &tr){ return tr.points.isEmpty() || tr.lastDistance >= m_maxRange; }), m_trails.end());
         update(); });
     m_cleanupTimer.start();
 

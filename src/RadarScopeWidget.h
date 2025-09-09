@@ -81,7 +81,7 @@ private:
 
     QPointF polarToPoint(float distance_m, float azimuth_deg, const QRectF &circle) const;
 
-    float m_maxRange = 8000.0f; // 默认8km
+    float m_maxRange = 5000.0f; // 默认5km
     QVector<Trail> m_trails;    // 多目标轨迹
     QTimer m_cleanupTimer;      // 周期清理过期航迹
 
