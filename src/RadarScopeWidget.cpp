@@ -76,9 +76,13 @@ void RadarScopeWidget::onTrackDatagram(const QByteArray &data)
             m_notices.push_back({tr("发现新目标 #%1").arg(t.id), QDateTime::currentMSecsSinceEpoch()});
         }
     }
-    // 更新目标类型/尺寸信息
+    // 更新目标类型/尺寸/速度/距离/身份信息
     it->targetType = msg.info.targetType;
     it->targetSize = msg.info.targetSize;
+    it->lastSpeed = qAbs(msg.info.speed);
+    it->lastDistance = msg.info.distance;
+    // 假设身份由 targetType==0 表示未知，否则视为已知
+    it->identityKnown = (msg.info.targetType != 0);
     it->points.push_back({p, QDateTime::currentMSecsSinceEpoch()});
     if (it->points.size() > m_maxTrailPoints)
         it->points.remove(0);
@@ -149,6 +153,52 @@ QString RadarScopeWidget::typeSizeLabel(int type, int size)
     return t + QStringLiteral("·") + s;
 }
 
+float RadarScopeWidget::computeThreatScore(const RadarScopeWidget::Trail &t) const
+{
+    // 规范化距离：越近 -> 越高威胁。这里用简单的线性归一：d_norm = 1 - min(d / maxRange, 1)
+    float dnorm = 1.0f - qBound(0.0f, t.lastDistance / m_maxRange, 1.0f);
+    // 速度归一化：速度越高 -> 越高威胁
+    float snorm = qBound(0.0f, t.lastSpeed / m_maxSpeed, 1.0f);
+    // 类型风险因子：按要求映射（未知=1, 旋翼=0.3, 固定翼=0.3, 直升机=0.6, 民航=0.7, 车=0.6）
+    float typeFactor = 1.0f;
+    switch (t.targetType)
+    {
+    case 0:
+        typeFactor = 1.0f;
+        break;
+    case 1:
+        typeFactor = 0.3f;
+        break;
+    case 2:
+        typeFactor = 0.3f;
+        break;
+    case 3:
+        typeFactor = 0.6f;
+        break;
+    case 4:
+        typeFactor = 0.7f;
+        break;
+    case 5:
+        typeFactor = 0.6f;
+        break;
+    default:
+        typeFactor = 1.0f;
+        break;
+    }
+    // 将 typeFactor 归一到 0..1(较高值表示更危险)。已知 mapping: unknown=1(high), others lower.
+    // We invert so that higher normalized value = more dangerous: tnorm = 1 - (typeFactor/maxPossible)
+    const float maxTypeVal = 1.0f; // since unknown uses 1.0
+    float tnorm = 1.0f - qBound(0.0f, typeFactor / maxTypeVal, 1.0f);
+
+    // 身份：未知=1（危险），已知=0（安全） -> identityNorm in [0..1]
+    float idnorm = t.identityKnown ? 0.0f : 1.0f;
+
+    // 加权合成（注意权重之和为1）
+    float score = m_weightDistance * dnorm + m_weightSpeed * snorm + m_weightType * tnorm + m_weightIdentity * idnorm;
+    // clamp
+    return qBound(0.0f, score, 1.0f);
+}
+
 void RadarScopeWidget::paintEvent(QPaintEvent *)
 {
     QPainter p(this);
@@ -211,9 +261,16 @@ void RadarScopeWidget::paintEvent(QPaintEvent *)
         }
         // 末端点
         const auto &last = t.points.back();
+        // 根据威胁得分计算颜色（蓝->红）
+        const float score = computeThreatScore(t); // 0..1
+        QColor col;
+        // interpolate blue (0,128,255) -> red (255,50,50)
+        col.setRed(int(80 + 175 * score));
+        col.setGreen(int(180 - 130 * score));
+        col.setBlue(int(255 - 205 * score));
         p.setPen(Qt::NoPen);
-        p.setBrush(QColor(80, 180, 255));
-        p.drawEllipse(last.pos, 3, 3);
+        p.setBrush(col);
+        p.drawEllipse(last.pos, 4, 4);
         // 绘制类型/尺寸标签
         QString label = RadarScopeWidget::typeSizeLabel(t.targetType, t.targetSize);
         if (!label.isEmpty())
@@ -221,9 +278,10 @@ void RadarScopeWidget::paintEvent(QPaintEvent *)
             QFont f = p.font();
             f.setPointSize(8);
             p.setFont(f);
-            p.setPen(QColor(200, 230, 200));
-            QRectF tr(last.pos.x() + 6, last.pos.y() - 8, 80, 14);
-            p.drawText(tr, Qt::AlignLeft | Qt::AlignVCenter, label);
+            p.setPen(QColor(230, 230, 230));
+            QRectF tr(last.pos.x() + 8, last.pos.y() - 10, 120, 14);
+            // 显示 类型·尺寸 以及威胁分 (0.00~1.00)
+            p.drawText(tr, Qt::AlignLeft | Qt::AlignVCenter, label + QStringLiteral(" ") + QString::number(score, 'f', 2));
         }
         // 如果有目标类型/尺寸信息（存在于 Trail structure? we need to map by id）
         // 在当前实现中 Trail only contains points; try to extract type/size from notices or external source.

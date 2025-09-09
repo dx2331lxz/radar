@@ -57,6 +57,9 @@ private:
         QVector<TrailPoint> points;
         quint8 targetType{0};
         quint8 targetSize{0};
+        float lastSpeed{0.0f};
+        float lastDistance{0.0f};
+        bool identityKnown{false};
     };
     struct Notice
     {
@@ -66,6 +69,15 @@ private:
 
     // helper to convert type/size to short label
     static QString typeSizeLabel(int type, int size);
+    // 计算威胁分（0..1）
+    float computeThreatScore(const Trail &t) const;
+
+    // 可调参数（默认值按需求）
+    float m_weightDistance = 0.3f;
+    float m_weightSpeed = 0.3f;
+    float m_weightType = 0.2f;
+    float m_weightIdentity = 0.2f;
+    float m_maxSpeed = 100.0f; // m/s，用于速度归一化
 
     QPointF polarToPoint(float distance_m, float azimuth_deg, const QRectF &circle) const;
 
