@@ -24,8 +24,8 @@ RadarScopeWidget::RadarScopeWidget(QWidget *parent)
                 t.points.removeFirst();
             }
         }
-        // 移除空轨迹
-        m_trails.erase(std::remove_if(m_trails.begin(), m_trails.end(), [](const Trail &tr){ return tr.points.isEmpty(); }), m_trails.end());
+    // 移除空轨迹或超出检测范围的轨迹
+    m_trails.erase(std::remove_if(m_trails.begin(), m_trails.end(), [this](const Trail &tr){ return tr.points.isEmpty() || tr.lastDistance > m_maxRange; }), m_trails.end());
         update(); });
     m_cleanupTimer.start();
 
@@ -65,6 +65,17 @@ void RadarScopeWidget::onTrackDatagram(const QByteArray &data)
     // 找到/创建轨迹
     auto it = std::find_if(m_trails.begin(), m_trails.end(), [&](const Trail &t)
                            { return t.id == msg.info.trackId; });
+    // 如果目标距离大于雷达最大量程，则移除已存在轨迹并忽略该点
+    if (msg.info.distance > m_maxRange)
+    {
+        if (it != m_trails.end())
+        {
+            m_trails.erase(it);
+            update();
+        }
+        return;
+    }
+
     if (it == m_trails.end())
     {
         Trail t;

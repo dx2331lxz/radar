@@ -85,8 +85,9 @@ private:
     QVector<Trail> m_trails;    // 多目标轨迹
     QTimer m_cleanupTimer;      // 周期清理过期航迹
 
-    qint64 m_trailKeepMs = 5ll * 60ll * 1000ll; // 保留5分钟
-    int m_maxTrailPoints = 2000;                // 每条轨迹最大采样点
+    // 减少默认保留时长与点数以降低内存与绘制负担
+    qint64 m_trailKeepMs = 60ll * 1000ll; // 保留60秒
+    int m_maxTrailPoints = 500;           // 每条轨迹最大采样点
     bool m_showNotices = true;
     qint64 m_noticeKeepMs = 3000; // 提示保留3s
     QVector<Notice> m_notices;    // 左上角提示
