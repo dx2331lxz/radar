@@ -76,6 +76,9 @@ void RadarScopeWidget::onTrackDatagram(const QByteArray &data)
             m_notices.push_back({tr("发现新目标 #%1").arg(t.id), QDateTime::currentMSecsSinceEpoch()});
         }
     }
+    // 更新目标类型/尺寸信息
+    it->targetType = msg.info.targetType;
+    it->targetSize = msg.info.targetSize;
     it->points.push_back({p, QDateTime::currentMSecsSinceEpoch()});
     if (it->points.size() > m_maxTrailPoints)
         it->points.remove(0);
@@ -95,6 +98,55 @@ QPointF RadarScopeWidget::polarToPoint(float distance_m, float azimuth_deg, cons
     const float x = center.x() + rr * qCos(theta);
     const float y = center.y() - rr * qSin(theta); // y向下为正，故减
     return {x, y};
+}
+
+QString RadarScopeWidget::typeSizeLabel(int type, int size)
+{
+    QString t;
+    switch (type)
+    {
+    case 0:
+        t = QStringLiteral("未知");
+        break;
+    case 1:
+        t = QStringLiteral("旋翼");
+        break;
+    case 2:
+        t = QStringLiteral("固定翼");
+        break;
+    case 3:
+        t = QStringLiteral("直升机");
+        break;
+    case 4:
+        t = QStringLiteral("民航");
+        break;
+    case 5:
+        t = QStringLiteral("车辆");
+        break;
+    default:
+        t = QStringLiteral("?%1").arg(type);
+        break;
+    }
+    QString s;
+    switch (size)
+    {
+    case 0:
+        s = QStringLiteral("小");
+        break;
+    case 1:
+        s = QStringLiteral("中");
+        break;
+    case 2:
+        s = QStringLiteral("大");
+        break;
+    case 3:
+        s = QStringLiteral("特大");
+        break;
+    default:
+        s = QStringLiteral("?%1").arg(size);
+        break;
+    }
+    return t + QStringLiteral("·") + s;
 }
 
 void RadarScopeWidget::paintEvent(QPaintEvent *)
@@ -162,6 +214,20 @@ void RadarScopeWidget::paintEvent(QPaintEvent *)
         p.setPen(Qt::NoPen);
         p.setBrush(QColor(80, 180, 255));
         p.drawEllipse(last.pos, 3, 3);
+        // 绘制类型/尺寸标签
+        QString label = RadarScopeWidget::typeSizeLabel(t.targetType, t.targetSize);
+        if (!label.isEmpty())
+        {
+            QFont f = p.font();
+            f.setPointSize(8);
+            p.setFont(f);
+            p.setPen(QColor(200, 230, 200));
+            QRectF tr(last.pos.x() + 6, last.pos.y() - 8, 80, 14);
+            p.drawText(tr, Qt::AlignLeft | Qt::AlignVCenter, label);
+        }
+        // 如果有目标类型/尺寸信息（存在于 Trail structure? we need to map by id）
+        // 在当前实现中 Trail only contains points; try to extract type/size from notices or external source.
+        // For now, no per-trail metadata stored; label drawing will be skipped unless we have info.
     }
 
     // 左上角提示（只显示关键信息）

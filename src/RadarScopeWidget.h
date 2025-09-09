@@ -55,12 +55,17 @@ private:
     {
         quint16 id;
         QVector<TrailPoint> points;
+        quint8 targetType{0};
+        quint8 targetSize{0};
     };
     struct Notice
     {
         QString text;
         qint64 ms;
     };
+
+    // helper to convert type/size to short label
+    static QString typeSizeLabel(int type, int size);
 
     QPointF polarToPoint(float distance_m, float azimuth_deg, const QRectF &circle) const;
 
