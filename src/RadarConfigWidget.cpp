@@ -41,21 +41,16 @@ RadarConfigWidget::RadarConfigWidget(QWidget *parent)
     root->addWidget(buildSearchSection());
     // removed: track/sim/servo sections
 
-    // Preview + actions
-    auto *btnRow = new QHBoxLayout();
-    applyBtn = new QPushButton(tr("应用配置"));
-    resetBtn = new QPushButton(tr("恢复默认"));
-    previewBtn = new QPushButton(tr("预览配置"));
-    btnRow->addWidget(applyBtn);
-    btnRow->addWidget(resetBtn);
-    btnRow->addWidget(previewBtn);
-
-    previewEdit = new QTextEdit();
-    previewEdit->setReadOnly(true);
-    previewEdit->setMinimumHeight(140);
-
-    root->addLayout(btnRow);
-    root->addWidget(previewEdit, 1);
+    // Operation log (replaces preview/actions)
+    operationLog = new QPlainTextEdit();
+    operationLog->setReadOnly(true);
+    operationLog->setMinimumHeight(140);
+    clearLogBtn = new QPushButton(tr("清空日志"));
+    auto *logRow = new QHBoxLayout();
+    logRow->addStretch();
+    logRow->addWidget(clearLogBtn);
+    root->addLayout(logRow);
+    root->addWidget(operationLog, 1);
 
     // 目标分组视图：按威胁等级分为3组
     targetTree = new QTreeWidget();
@@ -136,9 +131,8 @@ RadarConfigWidget::RadarConfigWidget(QWidget *parent)
     targetCleanupTimer.start();
 
     // Connections
-    connect(previewBtn, &QPushButton::clicked, this, &RadarConfigWidget::onPreview);
-    connect(applyBtn, &QPushButton::clicked, this, &RadarConfigWidget::onApply);
-    connect(resetBtn, &QPushButton::clicked, this, &RadarConfigWidget::onReset);
+    connect(clearLogBtn, &QPushButton::clicked, this, [this]()
+            { operationLog->clear(); });
 
     setDefaults();
 }
@@ -281,7 +275,8 @@ void RadarConfigWidget::onPreview()
 {
     auto j = gatherConfigJson();
     QJsonDocument doc(j);
-    previewEdit->setPlainText(QString::fromUtf8(doc.toJson(QJsonDocument::Indented)));
+    // show JSON snapshot in operation log
+    appendLog(QString("配置预览:\n%1").arg(QString::fromUtf8(doc.toJson(QJsonDocument::Indented))));
 }
 
 void RadarConfigWidget::onRadarDatagramReceived(const QByteArray &data)
@@ -289,13 +284,8 @@ void RadarConfigWidget::onRadarDatagramReceived(const QByteArray &data)
     // If logging incoming raw frames is enabled, append payload
     if (m_logIncoming)
     {
-        QString prev = previewEdit->toPlainText();
-        QString msg = QString("[RADAR->APP] %1\n(len=%2 bytes)\n").arg(QDateTime::currentDateTime().toString(Qt::ISODate)).arg(data.size());
-        if (!prev.isEmpty())
-            prev += "\n" + msg;
-        else
-            prev = msg;
-        previewEdit->setPlainText(prev);
+        QString msg = QString("[RADAR->APP] %1 (len=%2 bytes)").arg(QDateTime::currentDateTime().toString(Qt::ISODate)).arg(data.size());
+        appendLog(msg);
     }
 
     // Try parse track message and update target grouping
@@ -523,7 +513,7 @@ void RadarConfigWidget::onSendStandby()
 {
     // 预览仅展示动作
     QJsonObject j{{"action", QStringLiteral("standby")}};
-    previewEdit->setPlainText(QString::fromUtf8(QJsonDocument(j).toJson(QJsonDocument::Indented)));
+    appendLog(QString("发送 待机 任务:\n%1").arg(QString::fromUtf8(QJsonDocument(j).toJson(QJsonDocument::Indented))));
 
     // 构造并发送二进制“待机任务”数据包（任务类型0x00）
     Protocol::HeaderConfig hc;
@@ -545,13 +535,13 @@ void RadarConfigWidget::onSendSearch()
     // 如果雷达处于撤收状态，阻止发送并提示
     if (m_isRetracted)
     {
-        previewEdit->setPlainText(tr("雷达当前处于撤收状态，无法进入搜索。请先展开雷达。"));
+        appendLog(tr("雷达当前处于撤收状态，无法进入搜索。请先展开雷达。"));
         return;
     }
 
     // 1) JSON预览仅显示操作类型
     QJsonObject j{{"action", QStringLiteral("search")}};
-    previewEdit->setPlainText(QString::fromUtf8(QJsonDocument(j).toJson(QJsonDocument::Indented)));
+    appendLog(QString("发送 搜索 任务:\n%1").arg(QString::fromUtf8(QJsonDocument(j).toJson(QJsonDocument::Indented))));
 
     // 2) 构造并发送二进制“搜索任务”数据包（任务类型固定0x01）
     Protocol::HeaderConfig hc;
@@ -576,7 +566,7 @@ void RadarConfigWidget::onSendDeploy()
     const bool isDeploy = (deployActionCombo && deployActionCombo->currentIndex() == 0); // 0: 展开, 1: 撤收
     QJsonObject j{{"action", isDeploy ? QStringLiteral("deploy") : QStringLiteral("retract")}};
     emit sendDeployRequested(j);
-    previewEdit->setPlainText(QString::fromUtf8(QJsonDocument(j).toJson(QJsonDocument::Indented)));
+    appendLog(QString("发送 展开/撤收 任务:\n%1").arg(QString::fromUtf8(QJsonDocument(j).toJson(QJsonDocument::Indented))));
 
     // 构造并发送二进制“展开/撤收任务”数据包（任务类型：0x01 展开，0x00 撤收）
     Protocol::HeaderConfig hc;
@@ -653,6 +643,14 @@ void RadarConfigWidget::removeTargetById(quint16 id)
             baseLabel = tr("三 级 威胁 0.70-1.00");
         g->setText(0, QString("%1 (%2)").arg(baseLabel).arg(count));
     }
+}
+
+void RadarConfigWidget::appendLog(const QString &msg)
+{
+    if (!operationLog)
+        return;
+    const QString line = QString("[%1] %2").arg(QDateTime::currentDateTime().toString(Qt::ISODate)).arg(msg);
+    operationLog->appendPlainText(line);
 }
 
 // removed: servo handler

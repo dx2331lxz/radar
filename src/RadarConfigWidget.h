@@ -14,7 +14,7 @@
 #include <QDoubleSpinBox>
 #include <QLineEdit>
 #include <QPushButton>
-#include <QTextEdit>
+#include <QPlainTextEdit>
 #include <QJsonObject>
 #include <QGroupBox>
 
@@ -86,11 +86,9 @@ private:
 
     // removed: 伺服任务成员
 
-    // Bottom actions
-    QPushButton *applyBtn{};
-    QPushButton *resetBtn{};
-    QPushButton *previewBtn{};
-    QTextEdit *previewEdit{};
+    // Bottom actions -> operation log
+    QPlainTextEdit *operationLog{};
+    QPushButton *clearLogBtn{};
     // Per-section send buttons
     // removed: sendInitBtn, sendCalibBtn
     QPushButton *sendStandbyBtn{};
@@ -146,6 +144,7 @@ signals:
     // removed: servo signal
 
 private:
+    void appendLog(const QString &msg);
     bool m_logIncoming = false; // 默认关闭接收报文日志
     bool m_isRetracted = false; // 最近一次状态是否处于撤收
 };

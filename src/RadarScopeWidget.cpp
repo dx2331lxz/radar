@@ -518,6 +518,15 @@ void RadarScopeWidget::lockTarget(quint16 id)
 
 void RadarScopeWidget::engageTarget(quint16 id)
 {
+    // only allow engage if target is locked
+    if (m_lockedId != id)
+    {
+        if (m_showNotices)
+        {
+            m_notices.push_back({tr("目标未锁定，无法打击 #%1").arg(id), QDateTime::currentMSecsSinceEpoch()});
+        }
+        return;
+    }
     // find trail to get starting pos and type
     auto it = std::find_if(m_trails.begin(), m_trails.end(), [&](const Trail &t)
                            { return t.id == id; });
