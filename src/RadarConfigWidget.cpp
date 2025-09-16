@@ -625,4 +625,34 @@ void RadarConfigWidget::onTargetTreeItemClicked(QTreeWidgetItem *item, int colum
     emit targetSelected(quint16(id));
 }
 
+void RadarConfigWidget::removeTargetById(quint16 id)
+{
+    if (m_targets.contains(id))
+        m_targets.remove(id);
+    // remove from tree
+    auto root = targetTree->invisibleRootItem();
+    for (int gi = 0; gi < root->childCount(); ++gi)
+    {
+        auto *g = root->child(gi);
+        for (int i = g->childCount() - 1; i >= 0; --i)
+        {
+            auto *it = g->child(i);
+            if (it->data(0, Qt::UserRole).toUInt() == id)
+            {
+                g->removeChild(it);
+            }
+        }
+        // update group label counts
+        int count = g->childCount();
+        QString baseLabel;
+        if (gi == 0)
+            baseLabel = tr("一 级 威胁 0.00-0.30");
+        else if (gi == 1)
+            baseLabel = tr("二 级 威胁 0.30-0.70");
+        else
+            baseLabel = tr("三 级 威胁 0.70-1.00");
+        g->setText(0, QString("%1 (%2)").arg(baseLabel).arg(count));
+    }
+}
+
 // removed: servo handler

@@ -115,10 +115,10 @@ int main(int argc, char *argv[])
     // 当右侧选择目标时，在雷达盘高亮
     QObject::connect(cfg, &RadarConfigWidget::targetSelected, scope, &RadarScopeWidget::highlightTarget);
     // 锁定/下达打击：目前仅打印，后续可以发送网络指令
-    QObject::connect(cfg, &RadarConfigWidget::targetLockRequested, &window, [](quint16 id)
-                     { qDebug() << "Lock requested for target" << id; });
-    QObject::connect(cfg, &RadarConfigWidget::targetEngageRequested, &window, [](quint16 id)
-                     { qDebug() << "Engage requested for target" << id; });
+    QObject::connect(cfg, &RadarConfigWidget::targetLockRequested, scope, &RadarScopeWidget::lockTarget);
+    QObject::connect(cfg, &RadarConfigWidget::targetEngageRequested, scope, &RadarScopeWidget::engageTarget);
+    // when scope reports a hit, remove from right panel
+    QObject::connect(scope, &RadarScopeWidget::targetHit, cfg, &RadarConfigWidget::removeTargetById);
     // 用状态报文动态更新量程
     QObject::connect(&net, &NetworkManager::radarDatagramReceived, &window, [scope, cfg](const QByteArray &data)
                      {

@@ -32,6 +32,8 @@ public slots:
     void onRadarDatagramReceived(const QByteArray &data);
     // 从外部更新解析后的雷达状态（用于决定是否允许搜索）
     void onRadarStatusUpdated(const RadarStatus &s);
+    // 当雷达盘通知目标被击毁时，移除右侧面板中的目标显示
+    void removeTargetById(quint16 id);
 
 private slots:
     void onApply();

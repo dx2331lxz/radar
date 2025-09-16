@@ -4,6 +4,7 @@
 #include <QWidget>
 #include <QVector>
 #include <QTimer>
+#include <QPointF>
 #include "TrackMessage.h"
 #include <QString>
 
@@ -33,9 +34,17 @@ public:
     void setNoticeKeepMs(qint64 ms) { m_noticeKeepMs = qMax<qint64>(500, ms); }
     qint64 noticeKeepMs() const { return m_noticeKeepMs; }
 
+signals:
+    // notify that a target has been destroyed (so other UI can remove it)
+    void targetHit(quint16 id);
+
 public slots:
     void onTrackDatagram(const QByteArray &data);
     void highlightTarget(quint16 id);
+    // 请求锁定（界面变色）
+    void lockTarget(quint16 id);
+    // 请求发起打击（id）
+    void engageTarget(quint16 id);
     // 开/关搜索扫描线
     void setSearchActive(bool on);
     void setSweepSpeedDegPerSec(float degPerSec) { m_sweepSpeed = qBound(1.0f, degPerSec, 360.0f); }
@@ -47,6 +56,25 @@ protected:
     QSize minimumSizeHint() const override { return {360, 360}; }
 
 private:
+    struct Attack
+    {
+        enum Type
+        {
+            Laser,
+            SlowMissile,
+            FastMissile
+        } type;
+        quint16 targetId;
+        QPointF pos; // current position of the attack
+        qint64 startMs;
+        bool finished{false};
+        // for missiles: velocity pixels per second
+        float speed{0.0f};
+        // for laser: lifetime ms
+    };
+    QVector<Attack> m_attacks;
+    // locked target id -> show red halo
+    quint16 m_lockedId{0};
     struct TrailPoint
     {
         QPointF pos;
@@ -86,6 +114,7 @@ private:
     QVector<Trail> m_trails;    // 多目标轨迹
     quint16 m_highlightId{0};
     QTimer m_cleanupTimer; // 周期清理过期航迹
+    QTimer m_attackTimer;  // 更新攻击行为（导弹移动、激光寿命）
 
     // 减少默认保留时长与点数以降低内存与绘制负担
     qint64 m_trailKeepMs = 60ll * 1000ll; // 保留60秒

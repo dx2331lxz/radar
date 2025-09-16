@@ -29,6 +29,54 @@ RadarScopeWidget::RadarScopeWidget(QWidget *parent)
         update(); });
     m_cleanupTimer.start();
 
+    // attack timer: update attacks at 30Hz
+    m_attackTimer.setInterval(33);
+    connect(&m_attackTimer, &QTimer::timeout, this, [this]()
+            {
+        const qint64 now = QDateTime::currentMSecsSinceEpoch();
+        // update missiles: move towards next target point
+        for (auto &a : m_attacks) {
+            if (a.finished) continue;
+            // find target trail
+            auto it = std::find_if(m_trails.begin(), m_trails.end(), [&](const Trail &t){ return t.id == a.targetId; });
+            if (it == m_trails.end() || it->points.empty()) {
+                // target lost: finish attack
+                a.finished = true;
+                continue;
+            }
+            const QPointF targetPos = it->points.back().pos;
+            if (a.type == Attack::Laser) {
+                // laser persists for 3s from start
+                if (now - a.startMs > 3000) {
+                    a.finished = true;
+                    // remove trail from scope
+                    m_trails.erase(std::remove_if(m_trails.begin(), m_trails.end(), [&](const Trail &tr){ return tr.id == a.targetId; }), m_trails.end());
+                    // laser disappears and target is removed
+                    emit targetHit(a.targetId);
+                }
+            } else {
+                // missile: move towards current targetPos
+                QPointF dir = targetPos - a.pos;
+                const float dist = std::hypot(dir.x(), dir.y());
+                if (dist < 6.0f) {
+                    // hit: remove trail immediately
+                    a.finished = true;
+                    m_trails.erase(std::remove_if(m_trails.begin(), m_trails.end(), [&](const Trail &tr){ return tr.id == a.targetId; }), m_trails.end());
+                    emit targetHit(a.targetId);
+                } else {
+                    if (dist > 0.0f) {
+                        dir /= dist;
+                        const float step = a.speed * (m_attackTimer.interval() / 1000.0f);
+                        a.pos += dir * step;
+                    }
+                }
+            }
+        }
+        // remove finished attacks after emitting
+        m_attacks.erase(std::remove_if(m_attacks.begin(), m_attacks.end(), [](const Attack &at){ return at.finished; }), m_attacks.end());
+        update(); });
+    m_attackTimer.start();
+
     // 扫描线动画：每16ms更新一次角度
     m_sweepTimer.setInterval(16);
     connect(&m_sweepTimer, &QTimer::timeout, this, [this]
@@ -380,7 +428,11 @@ void RadarScopeWidget::paintEvent(QPaintEvent *)
         if (it != m_trails.end() && !it->points.isEmpty())
         {
             const auto &last = it->points.back();
-            QPen haloPen(QColor(255, 255, 0, 180));
+            QPen haloPen;
+            if (m_lockedId == m_highlightId)
+                haloPen = QPen(QColor(220, 60, 60, 200)); // red when locked
+            else
+                haloPen = QPen(QColor(255, 255, 0, 180));
             haloPen.setWidth(2);
             p.setPen(haloPen);
             p.setBrush(Qt::NoBrush);
@@ -391,6 +443,38 @@ void RadarScopeWidget::paintEvent(QPaintEvent *)
             p.setFont(f);
             p.setPen(QColor(255, 255, 200));
             p.drawText(QRectF(last.pos.x() + 10, last.pos.y() - 12, 160, 16), Qt::AlignLeft | Qt::AlignVCenter, QStringLiteral("锁定目标 #%1").arg(it->id));
+        }
+    }
+
+    // 绘制攻击（激光/导弹）
+    for (const auto &a : m_attacks)
+    {
+        // find latest target pos
+        auto tit = std::find_if(m_trails.begin(), m_trails.end(), [&](const Trail &t)
+                                { return t.id == a.targetId; });
+        QPointF targetPos;
+        if (tit != m_trails.end() && !tit->points.isEmpty())
+            targetPos = tit->points.back().pos;
+        if (a.type == Attack::Laser)
+        {
+            // laser: draw red line from center to target
+            QPen pen(QColor(255, 40, 40, 220));
+            pen.setWidth(3);
+            p.setPen(pen);
+            p.drawLine(circle.center(), targetPos);
+        }
+        else
+        {
+            // missile: draw moving circle with tail
+            QColor color = (a.type == Attack::SlowMissile) ? QColor(120, 220, 120) : QColor(255, 200, 80);
+            p.setPen(Qt::NoPen);
+            p.setBrush(color);
+            p.drawEllipse(a.pos, 5, 5);
+            // tail
+            QPen tailPen(color.darker(), 2);
+            tailPen.setCapStyle(Qt::RoundCap);
+            p.setPen(tailPen);
+            p.drawLine(a.pos, targetPos);
         }
     }
 }
@@ -423,5 +507,46 @@ void RadarScopeWidget::clearTrails()
 {
     m_trails.clear();
     m_notices.clear();
+    update();
+}
+
+void RadarScopeWidget::lockTarget(quint16 id)
+{
+    m_lockedId = id;
+    update();
+}
+
+void RadarScopeWidget::engageTarget(quint16 id)
+{
+    // find trail to get starting pos and type
+    auto it = std::find_if(m_trails.begin(), m_trails.end(), [&](const Trail &t)
+                           { return t.id == id; });
+    if (it == m_trails.end() || it->points.empty())
+        return;
+    const QPointF targetPos = it->points.back().pos;
+    // compute threat score to select weapon type: low score->laser, mid->slow missile, high->fast missile
+    float score = computeThreatScore(*it);
+    Attack a;
+    a.targetId = id;
+    a.startMs = QDateTime::currentMSecsSinceEpoch();
+    if (score < 0.3f)
+    {
+        a.type = Attack::Laser;
+        a.pos = QPointF(0, 0); // unused for laser
+    }
+    else if (score < 0.7f)
+    {
+        a.type = Attack::SlowMissile;
+        // start from top-center of radar (some offset)
+        a.pos = QPointF(rect().center().x(), rect().center().y() - 0.8 * (0.48f * qMin(rect().width(), rect().height())));
+        a.speed = 120.0f; // pixels/s (slow)
+    }
+    else
+    {
+        a.type = Attack::FastMissile;
+        a.pos = QPointF(rect().center().x(), rect().center().y() - 0.8 * (0.48f * qMin(rect().width(), rect().height())));
+        a.speed = 300.0f; // pixels/s (fast)
+    }
+    m_attacks.push_back(a);
     update();
 }
