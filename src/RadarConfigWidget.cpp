@@ -11,6 +11,11 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QLabel>
+#include <QByteArray>
+#include <QTextStream>
+#include <QTextDocument>
+#include <QTextCursor>
+#include <QTextBlock>
 #include <QDateTime>
 #include <QTreeWidget>
 #include <QTimer>
@@ -92,10 +97,16 @@ RadarConfigWidget::RadarConfigWidget(QWidget *parent)
 
     connect(lockBtn, &QPushButton::clicked, this, [this]()
             {
-        if (m_selectedTargetId) emit targetLockRequested(m_selectedTargetId); });
+        if (m_selectedTargetId) {
+            emit targetLockRequested(m_selectedTargetId);
+            appendLog(QString("请求锁定目标: %1").arg(m_selectedTargetId));
+        } });
     connect(engageBtn, &QPushButton::clicked, this, [this]()
             {
-        if (m_selectedTargetId) emit targetEngageRequested(m_selectedTargetId); });
+        if (m_selectedTargetId) {
+            emit targetEngageRequested(m_selectedTargetId);
+            appendLog(QString("请求下达打击: %1").arg(m_selectedTargetId));
+        } });
 
     // 点击选择信号
     connect(targetTree, &QTreeWidget::itemClicked, this, &RadarConfigWidget::onTargetTreeItemClicked);
@@ -294,6 +305,8 @@ void RadarConfigWidget::onRadarDatagramReceived(const QByteArray &data)
     TrackMessage msg;
     if (!TrackParser::parseLittleEndian(data, msg))
         return;
+
+    // (不再在日志中记录轨迹解析摘要)
 
     // Compute threat score using simplified logic from RadarScopeWidget
     // distance normalization (closer => higher)
@@ -528,6 +541,8 @@ void RadarConfigWidget::onSendStandby()
         emit targetAddressChanged(targetIpEdit->text(), targetPortSpin->value());
     QByteArray packet = Protocol::buildStandbyTaskPacket(hc, 0x00);
     emit sendStandbyPacketRequested(packet);
+    // log hex dump of sent binary
+    appendLog(QString("已发送 待机 包 len=%1\n%2").arg(packet.size()).arg(QString::fromLatin1(packet.toHex(' ').toUpper())));
 }
 
 void RadarConfigWidget::onSendSearch()
@@ -557,6 +572,7 @@ void RadarConfigWidget::onSendSearch()
         emit targetAddressChanged(targetIpEdit->text(), targetPortSpin->value());
     QByteArray packet = Protocol::buildSearchTaskPacket(hc, 0x01);
     emit sendSearchPacketRequested(packet);
+    appendLog(QString("已发送 搜索 包 len=%1\n%2").arg(packet.size()).arg(QString::fromLatin1(packet.toHex(' ').toUpper())));
 }
 
 // removed: track/simulation handlers
@@ -583,6 +599,7 @@ void RadarConfigWidget::onSendDeploy()
     const quint8 taskType = isDeploy ? 0x01 : 0x00;
     QByteArray packet = Protocol::buildDeployTaskPacket(hc, taskType);
     emit sendDeployPacketRequested(packet);
+    appendLog(QString("已发送 展开/撤收 包 len=%1\n%2").arg(packet.size()).arg(QString::fromLatin1(packet.toHex(' ').toUpper())));
 }
 
 void RadarConfigWidget::onTargetTreeItemClicked(QTreeWidgetItem *item, int column)
@@ -651,6 +668,34 @@ void RadarConfigWidget::appendLog(const QString &msg)
         return;
     const QString line = QString("[%1] %2").arg(QDateTime::currentDateTime().toString(Qt::ISODate)).arg(msg);
     operationLog->appendPlainText(line);
+    // trim if exceeding max lines
+    if (m_maxLogLines > 0)
+    {
+        int blocks = operationLog->blockCount();
+        if (blocks > m_maxLogLines)
+        {
+            int removeCount = blocks - m_maxLogLines;
+            QTextDocument *doc = operationLog->document();
+            QTextCursor cur(doc);
+            // move to start
+            cur.setPosition(0);
+            // advance removeCount blocks
+            for (int i = 0; i < removeCount; ++i)
+            {
+                cur.movePosition(QTextCursor::NextBlock, QTextCursor::KeepAnchor);
+            }
+            // remove the selected leading blocks
+            cur.removeSelectedText();
+            // remove leading newline if present
+            if (doc->firstBlock().text().isEmpty())
+            {
+                QTextCursor c2(doc);
+                c2.setPosition(doc->firstBlock().position());
+                c2.movePosition(QTextCursor::NextBlock, QTextCursor::KeepAnchor);
+                c2.removeSelectedText();
+            }
+        }
+    }
 }
 
 // removed: servo handler

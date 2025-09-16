@@ -89,6 +89,13 @@ private:
     // Bottom actions -> operation log
     QPlainTextEdit *operationLog{};
     QPushButton *clearLogBtn{};
+    // maximum number of log lines to keep; 0 disables trimming
+    int m_maxLogLines = 1000;
+
+public:
+    // configure operation log max lines
+    void setMaxLogLines(int n) { m_maxLogLines = n; }
+    int maxLogLines() const { return m_maxLogLines; }
     // Per-section send buttons
     // removed: sendInitBtn, sendCalibBtn
     QPushButton *sendStandbyBtn{};
