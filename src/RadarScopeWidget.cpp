@@ -371,6 +371,34 @@ void RadarScopeWidget::paintEvent(QPaintEvent *)
         int span16 = int(span * 16.0f);
         p.drawPie(arcRect, start16, span16);
     }
+
+    // 如果存在高亮目标，在其末端绘制外圈与更醒目标记
+    if (m_highlightId != 0)
+    {
+        auto it = std::find_if(m_trails.begin(), m_trails.end(), [&](const Trail &tr)
+                               { return tr.id == m_highlightId; });
+        if (it != m_trails.end() && !it->points.isEmpty())
+        {
+            const auto &last = it->points.back();
+            QPen haloPen(QColor(255, 255, 0, 180));
+            haloPen.setWidth(2);
+            p.setPen(haloPen);
+            p.setBrush(Qt::NoBrush);
+            p.drawEllipse(last.pos, 8, 8);
+            QFont f = p.font();
+            f.setBold(true);
+            f.setPointSize(10);
+            p.setFont(f);
+            p.setPen(QColor(255, 255, 200));
+            p.drawText(QRectF(last.pos.x() + 10, last.pos.y() - 12, 160, 16), Qt::AlignLeft | Qt::AlignVCenter, QStringLiteral("锁定目标 #%1").arg(it->id));
+        }
+    }
+}
+
+void RadarScopeWidget::highlightTarget(quint16 id)
+{
+    m_highlightId = id;
+    update();
 }
 
 void RadarScopeWidget::setSearchActive(bool on)

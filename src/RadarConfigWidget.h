@@ -4,6 +4,10 @@
 #include <QWidget>
 #include "RadarStatus.h"
 #include <QGroupBox>
+#include <QTreeWidget>
+#include <QTimer>
+#include <QLabel>
+#include <QHash>
 #include <QCheckBox>
 #include <QComboBox>
 #include <QSpinBox>
@@ -36,11 +40,10 @@ private slots:
     // removed: onSendInit(), onSendCalibration()
     void onSendStandby();
     void onSendSearch();
-    void onSendTrack();
-    void onSendSimulation();
+    // removed: 跟踪/模拟/伺服发送槽
     // removed: onSendPower()
     void onSendDeploy();
-    void onSendServo();
+    void onTargetTreeItemClicked(QTreeWidgetItem *item, int column);
 
 private:
     // UI builders
@@ -48,11 +51,9 @@ private:
     QGroupBox *buildStandbySection();
     QGroupBox *buildSearchSection();
     QGroupBox *buildHeaderSection();
-    QGroupBox *buildTrackSection();
-    QGroupBox *buildSimSection();
+    // removed: track/sim/servo sections
     // removed: buildPowerSection()
     QGroupBox *buildDeploySection();
-    QGroupBox *buildServoSection();
 
     void setDefaults();
     QJsonObject gatherConfigJson() const;
@@ -74,24 +75,14 @@ private:
     QLineEdit *targetIpEdit{};
     QSpinBox *targetPortSpin{};
 
-    // 跟踪任务
-    QCheckBox *trackEnable{};
-    QLineEdit *trackTargetIdEdit{};
-    QSpinBox *trackRateSpin{};
-
-    // 模拟任务
-    QCheckBox *simEnable{};
-    QComboBox *simScenarioCombo{};
-    QSpinBox *simTargetCountSpin{};
+    // removed: 跟踪/模拟任务成员
 
     // removed: 上下电任务
 
     // 展开撤收任务
     QComboBox *deployActionCombo{}; // 展开/撤收
 
-    // 伺服转停任务
-    QComboBox *servoActionCombo{};    // 转动/停止
-    QDoubleSpinBox *servoSpeedSpin{}; // 角速度 (deg/s)
+    // removed: 伺服任务成员
 
     // Bottom actions
     QPushButton *applyBtn{};
@@ -102,11 +93,33 @@ private:
     // removed: sendInitBtn, sendCalibBtn
     QPushButton *sendStandbyBtn{};
     QPushButton *sendSearchBtn{};
-    QPushButton *sendTrackBtn{};
-    QPushButton *sendSimBtn{};
+    // removed: sendTrackBtn/sendSimBtn
     // removed: sendPowerBtn
     QPushButton *sendDeployBtn{};
-    QPushButton *sendServoBtn{};
+
+    // 目标分组面板（右侧实时目标列表）
+    QTreeWidget *targetTree{}; // 顶层有3个组：一级/二级/三级
+    QTimer targetCleanupTimer; // 清理过期目标
+
+    struct TargetInfo
+    {
+        quint16 id{0};
+        float lastScore{0.0f};
+        qint64 lastMs{0};
+        float lastDistance{0.0f};
+    };
+    QHash<quint16, TargetInfo> m_targets; // keyed by track id
+    // 当前已知雷达探测量程（由状态报文更新）
+    float m_currentDetectRange = 5000.0f;
+    // 当前选中目标（0表示无）
+    quint16 m_selectedTargetId = 0;
+    // 打击操作区控件
+    QLabel *detailIdLabel{};
+    QLabel *detailScoreLabel{};
+    QLabel *detailDistLabel{};
+    QLabel *detailTypeLabel{};
+    QPushButton *lockBtn{};
+    QPushButton *engageBtn{};
 
 signals:
     // removed: sendInitRequested, sendCalibrationRequested
@@ -118,13 +131,17 @@ signals:
     void sendStandbyPacketRequested(const QByteArray &packet);
     // 通知更新目标地址
     void targetAddressChanged(const QString &ip, int port);
-    void sendTrackRequested(const QJsonObject &cfg);
-    void sendSimulationRequested(const QJsonObject &cfg);
+    // removed: track/simulation signals
     // removed: sendPowerRequested
     void sendDeployRequested(const QJsonObject &cfg);
     // 发送二进制展开/撤收任务包
     void sendDeployPacketRequested(const QByteArray &packet);
-    void sendServoRequested(const QJsonObject &cfg);
+    // 当用户在右侧面板选择目标时发出 id
+    void targetSelected(quint16 id);
+    // 用户请求锁定或下达打击某目标（id）
+    void targetLockRequested(quint16 id);
+    void targetEngageRequested(quint16 id);
+    // removed: servo signal
 
 private:
     bool m_logIncoming = false; // 默认关闭接收报文日志

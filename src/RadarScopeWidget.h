@@ -35,6 +35,7 @@ public:
 
 public slots:
     void onTrackDatagram(const QByteArray &data);
+    void highlightTarget(quint16 id);
     // 开/关搜索扫描线
     void setSearchActive(bool on);
     void setSweepSpeedDegPerSec(float degPerSec) { m_sweepSpeed = qBound(1.0f, degPerSec, 360.0f); }
@@ -83,7 +84,8 @@ private:
 
     float m_maxRange = 5000.0f; // 默认5km
     QVector<Trail> m_trails;    // 多目标轨迹
-    QTimer m_cleanupTimer;      // 周期清理过期航迹
+    quint16 m_highlightId{0};
+    QTimer m_cleanupTimer; // 周期清理过期航迹
 
     // 减少默认保留时长与点数以降低内存与绘制负担
     qint64 m_trailKeepMs = 60ll * 1000ll; // 保留60秒

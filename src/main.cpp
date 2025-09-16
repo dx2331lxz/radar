@@ -88,10 +88,7 @@ int main(int argc, char *argv[])
         Q_UNUSED(port);
     net.setTarget(QHostAddress(QHostAddress::LocalHost), 6280);
     qDebug() << "Target locked to" << QHostAddress(QHostAddress::LocalHost).toString() << 6280; });
-    QObject::connect(cfg, &RadarConfigWidget::sendTrackRequested, cfg, sendToRadar);
-    QObject::connect(cfg, &RadarConfigWidget::sendTrackRequested, &window, [scope](const QJsonObject &)
-                     { scope->setSearchActive(false); });
-    QObject::connect(cfg, &RadarConfigWidget::sendSimulationRequested, cfg, sendToRadar);
+    // removed: track/simulation/servo connections
     // removed: power panel and signal
     QObject::connect(cfg, &RadarConfigWidget::sendDeployRequested, cfg, sendToRadar);
     // 二进制展开/撤收任务：直接发送到雷达
@@ -103,7 +100,7 @@ int main(int argc, char *argv[])
         // 如果是撤收（任务类型0x00），停止扫描并清除轨迹
         scope->setSearchActive(false);
         scope->clearTrails(); });
-    QObject::connect(cfg, &RadarConfigWidget::sendServoRequested, cfg, sendToRadar);
+    // removed: servo connection
 
     // log messages from network
     QObject::connect(&net, &NetworkManager::clientMessageReceived, [](const QByteArray &data)
@@ -115,6 +112,13 @@ int main(int argc, char *argv[])
     QObject::connect(&net, &NetworkManager::radarDatagramReceived, cfg, &RadarConfigWidget::onRadarDatagramReceived);
     QObject::connect(&net, &NetworkManager::radarDatagramReceived, status, &RadarStatusWidget::onRadarDatagram);
     QObject::connect(&net, &NetworkManager::radarDatagramReceived, scope, &RadarScopeWidget::onTrackDatagram);
+    // 当右侧选择目标时，在雷达盘高亮
+    QObject::connect(cfg, &RadarConfigWidget::targetSelected, scope, &RadarScopeWidget::highlightTarget);
+    // 锁定/下达打击：目前仅打印，后续可以发送网络指令
+    QObject::connect(cfg, &RadarConfigWidget::targetLockRequested, &window, [](quint16 id)
+                     { qDebug() << "Lock requested for target" << id; });
+    QObject::connect(cfg, &RadarConfigWidget::targetEngageRequested, &window, [](quint16 id)
+                     { qDebug() << "Engage requested for target" << id; });
     // 用状态报文动态更新量程
     QObject::connect(&net, &NetworkManager::radarDatagramReceived, &window, [scope, cfg](const QByteArray &data)
                      {
