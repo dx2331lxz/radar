@@ -28,6 +28,10 @@ namespace Protocol
     // 含32B帧头 + 1B任务类型(0x01展开/0x00撤收) + 16B保留(全0) + 2B校验
     QByteArray buildDeployTaskPacket(const HeaderConfig &cfg, quint8 taskType = 0x00);
 
+    // 构造“命中目标”报文 0x4444
+    // 结构：32B帧头 + 1B目标编号 + 16B保留 + 2B校验
+    QByteArray buildHitPacket(const HeaderConfig &cfg, quint8 targetId);
+
     // 计算和校验与CRC16（LE）
     quint16 checksumSum16(const QByteArray &data);    // 对data全体求和16位
     quint16 checksumCrc16IBM(const QByteArray &data); // CRC-16/IBM (poly 0xA001), 初值0xFFFF

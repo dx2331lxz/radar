@@ -537,14 +537,14 @@ void RadarScopeWidget::engageTarget(quint16 id)
     else if (score < 0.7f)
     {
         a.type = Attack::SlowMissile;
-        // start from top-center of radar (some offset)
-        a.pos = QPointF(rect().center().x(), rect().center().y() - 0.8 * (0.48f * qMin(rect().width(), rect().height())));
+        // start from radar center
+        a.pos = rect().center();
         a.speed = 120.0f; // pixels/s (slow)
     }
     else
     {
         a.type = Attack::FastMissile;
-        a.pos = QPointF(rect().center().x(), rect().center().y() - 0.8 * (0.48f * qMin(rect().width(), rect().height())));
+        a.pos = rect().center();
         a.speed = 300.0f; // pixels/s (fast)
     }
     m_attacks.push_back(a);

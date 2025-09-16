@@ -40,4 +40,7 @@ namespace ProtocolIds
     static constexpr quint16 CfgReservedBegin = 0x2093;    // ~0x2FFF 系统保留
     static constexpr quint16 CfgReservedEnd = 0x2FFF;
 
+    // 命中/击中目标报文（雷达->指挥中心或上层）
+    static constexpr quint16 HitReport = 0x4444; // 0x4444 击中目标报文
+
 } // namespace ProtocolIds

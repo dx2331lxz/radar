@@ -10,6 +10,8 @@
 #include "NetworkManager.h"
 #include "RadarScopeWidget.h"
 #include "RadarStatus.h"
+#include "Protocol.h"
+#include "MessageIds.h"
 
 int main(int argc, char *argv[])
 {
@@ -119,6 +121,14 @@ int main(int argc, char *argv[])
     QObject::connect(cfg, &RadarConfigWidget::targetEngageRequested, scope, &RadarScopeWidget::engageTarget);
     // when scope reports a hit, remove from right panel
     QObject::connect(scope, &RadarScopeWidget::targetHit, cfg, &RadarConfigWidget::removeTargetById);
+    // when scope reports a hit, also send HitReport (0x4444) packet via network
+    QObject::connect(scope, &RadarScopeWidget::targetHit, &net, [&net](quint16 id)
+                     {
+        Protocol::HeaderConfig hc;
+        hc.msgIdRadar = ProtocolIds::HitReport; // set message id to 0x4444
+        hc.checkMethod = 1; // default to sum checksum
+        QByteArray pkt = Protocol::buildHitPacket(hc, quint8(id & 0xFF));
+        net.sendToRadar(pkt); });
     // 用状态报文动态更新量程
     QObject::connect(&net, &NetworkManager::radarDatagramReceived, &window, [scope, cfg](const QByteArray &data)
                      {
